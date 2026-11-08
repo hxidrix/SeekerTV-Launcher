@@ -6,6 +6,7 @@ Customized Seeker v1.0 TV wheel release.
 
 - Updated app identity and Android package version to Seeker v1.0.
 - Added customizable app titles and colors, wallpaper controls, gradient controls, and the infinite-scroll toggle.
+- Fixed wheel layout so disabling infinite scroll removes the wraparound rows immediately.
 - Focused the documented build and exported APK on the TV wheel flavor.
 
 ## v0.9.0 (2026-10-22)

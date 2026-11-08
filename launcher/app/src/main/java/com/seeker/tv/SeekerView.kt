@@ -217,6 +217,8 @@ class SeekerView(ctx: Context, private val host: Host) : View(ctx) {
     fun setGreeting(g: String) { greeting = g; panel = null; invalidate() }
     fun setWeather(w: Weather.Now) { weather = w; panel = null; invalidate() }
     fun tick() { panel = null; invalidate() }
+    /** Reposition the wheel immediately when the infinite-scroll setting changes. */
+    fun refreshScrollLayout() = layoutWheel(animate = true)
     fun setAppearance(
         bitmap: Bitmap?, opacity: Int, imageEnabled: Boolean, gradientEnabled: Boolean,
         gradientOpacity: Int, gradientLength: Int, gradientStretch: Int,
@@ -268,7 +270,7 @@ class SeekerView(ctx: Context, private val host: Host) : View(ctx) {
     private fun layoutWheel(animate: Boolean) {
         for (i in apps.indices) {
             var off = i - sel
-            if (!reorder && apps.size > 1) {
+            if (!reorder && host.infiniteScrollEnabled() && apps.size > 1) {
                 val half = apps.size / 2
                 if (off > half) off -= apps.size
                 if (off < -half) off += apps.size

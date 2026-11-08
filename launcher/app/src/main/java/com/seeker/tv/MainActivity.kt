@@ -462,6 +462,7 @@ class MainActivity : Activity(), SeekerView.Host, SettingsView.Host, GameHost {
 
     override fun toggleInfiniteScroll() {
         prefs.edit().putBoolean("infinite_scroll", !infiniteScrollEnabled()).apply()
+        view?.refreshScrollLayout()
     }
 
     override fun toggleSound() {
