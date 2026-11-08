@@ -1,0 +1,198 @@
+<title>Seeker Invaders</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a 1920x1080 TV stage scaled to fit. Single dark theme by design: it is a TV screen. */
+:root {
+  --bg: #0b0c0e; --panel: #121316; --dot: #2a2d33; --fg: #e8e9eb; --mute: #70757e; --dim: #3b3f46; --line: #1f2126;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { margin: 0; background: var(--panel); color: var(--fg); font-family: var(--mono);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px; }
+.wrap { max-width: 1400px; margin: 0 auto; display: grid; gap: 12px; }
+.frame { position: relative; width: 100%; aspect-ratio: 16 / 9; max-width: 100%; overflow: hidden; border-radius: 6px; background: var(--bg); box-shadow: 0 0 0 1px var(--line); }
+.stage { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; transform-origin: 0 0; background: var(--bg); overflow: hidden; outline: none; }
+canvas { position: absolute; top: 0; left: 0; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; font-size: 13px; color: var(--mute); }
+button { font: inherit; font-size: 12px; letter-spacing: .06em; background: transparent; color: var(--mute); border: 1px solid var(--line); border-radius: 4px; padding: 6px 10px; cursor: pointer; }
+button:hover, button:focus-visible { color: var(--fg); border-color: var(--mute); outline: none; }
+button.on { color: var(--fg); border-color: var(--fg); }
+.note { font-size: 13px; color: var(--mute); line-height: 1.5; max-width: 72ch; }
+</style>
+
+<div class="wrap">
+  <div class="frame" id="frame">
+    <div class="stage" id="stage" tabindex="0" aria-label="Seeker Invaders. Enter to start and fire, left and right to move one tile.">
+      <canvas id="c" width="1920" height="1080"></canvas>
+    </div>
+  </div>
+  <div class="controls">
+    <button id="focus">Click here, then Enter to start · ← → move one tile · Enter = fire</button>
+    <button id="mute" class="on">Sound on</button>
+  </div>
+  <p class="note">Playable mockup at 1920x1080. Enter is the remote's OK button. Your ship moves one tile per press with a blip. Shoot a critter and that service "opens" (brand takeover), then it's back to START. The meteor on the far right is SETTINGS. The critters are our own drawings. Sound is synthesized in the page; the TV build uses the same waveforms.</p>
+</div>
+
+<script>
+(function(){
+  var F = {
+  A:["01110","10001","10001","11111","10001","10001","10001"],B:["11110","10001","10001","11110","10001","10001","11110"],C:["01111","10000","10000","10000","10000","10000","01111"],D:["11110","10001","10001","10001","10001","10001","11110"],E:["11111","10000","10000","11110","10000","10000","11111"],F:["11111","10000","10000","11110","10000","10000","10000"],G:["01111","10000","10000","10111","10001","10001","01111"],H:["10001","10001","10001","11111","10001","10001","10001"],I:["11111","00100","00100","00100","00100","00100","11111"],J:["00001","00001","00001","00001","10001","10001","01110"],K:["10001","10010","10100","11000","10100","10010","10001"],L:["10000","10000","10000","10000","10000","10000","11111"],M:["10001","11011","10101","10101","10001","10001","10001"],N:["10001","11001","10101","10011","10001","10001","10001"],O:["01110","10001","10001","10001","10001","10001","01110"],P:["11110","10001","10001","11110","10000","10000","10000"],Q:["01110","10001","10001","10001","10101","10010","01101"],R:["11110","10001","10001","11110","10100","10010","10001"],S:["01111","10000","10000","01110","00001","00001","11110"],T:["11111","00100","00100","00100","00100","00100","00100"],U:["10001","10001","10001","10001","10001","10001","01110"],V:["10001","10001","10001","10001","01010","01010","00100"],W:["10001","10001","10001","10101","10101","11011","10001"],X:["10001","10001","01010","00100","01010","10001","10001"],Y:["10001","10001","01010","00100","00100","00100","00100"],Z:["11111","00001","00010","00100","01000","10000","11111"],
+  "0":["01110","10001","10011","10101","11001","10001","01110"],"1":["00100","01100","00100","00100","00100","00100","01110"],"2":["01110","10001","00001","00010","00100","01000","11111"],"3":["11111","00010","00100","00010","00001","10001","01110"],"4":["00010","00110","01010","10010","11111","00010","00010"],"5":["11111","10000","11110","00001","00001","10001","01110"],"6":["00111","01000","10000","11110","10001","10001","01110"],"7":["11111","00001","00010","00100","01000","01000","01000"],"8":["01110","10001","10001","01110","10001","10001","01110"],"9":["01110","10001","10001","01111","00001","00010","11100"],
+  " ":["00000","00000","00000","00000","00000","00000","00000"],"+":["00000","00100","00100","11111","00100","00100","00000"],"-":["00000","00000","00000","11111","00000","00000","00000"],"!":["00100","00100","00100","00100","00100","00000","00100"]};
+
+  // our own critters: three species, two frames each
+  var CRIT = [
+    [["00100000100","00010001000","00111111100","01101110110","11111111111","10111111101","10100000101","00011011000"],
+     ["00100000100","00010001000","00111111100","01101110110","11111111111","00111111100","01000000010","10000000001"]],
+    [["00011000","00111100","01111110","11011011","11111111","00100100","01011010","10100101"],
+     ["00011000","00111100","01111110","11011011","11111111","01011010","10000001","01000010"]],
+    [["000011110000","011111111110","111111111111","111001100111","111111111111","000110011000","001100001100","110000000011"],
+     ["000011110000","011111111110","111111111111","111001100111","111111111111","001101101100","010000000010","001000000100"]]];
+  var SHIP = ["0000001000000","0000011100000","0000011100000","0111111111110","1111111111111","1111111111111","1111111111111"];
+  var ROCK = ["000111100000","001111111000","011111111100","111101111110","111111111111","111111011111","011111111110","001111111100","000111111000","000001100000"];
+  var APPS = [
+    {n:"NETFLIX", c:"#E50914", ink:"#fff"}, {n:"YOUTUBE", c:"#FF0000", ink:"#fff"}, {n:"HULU", c:"#1CE783", ink:"#0b0c0e"}, {n:"PRIME", c:"#00A8E1", ink:"#0b0c0e"},
+    {n:"DISNEY+", c:"#2E6BFF", ink:"#fff"}, {n:"MAX", c:"#3D34FF", ink:"#fff"}, {n:"PEACOCK", c:"#FFC72C", ink:"#0b0c0e"}, {n:"APPLE TV", c:"#F5F5F7", ink:"#0b0c0e"}];
+  var SETTINGS = {n:"SETTINGS", c:"#9AA3AD", ink:"#0b0c0e"};
+
+  var stage = document.getElementById('stage'), frame = document.getElementById('frame');
+  var cv = document.getElementById('c'), x = cv.getContext('2d');
+  var CSS = getComputedStyle(document.documentElement), DOT = CSS.getPropertyValue('--dot').trim(), FG = CSS.getPropertyValue('--fg').trim(), DIM = CSS.getPropertyValue('--dim').trim(), MUTE = CSS.getPropertyValue('--mute').trim();
+  function fit(){ stage.style.transform = 'scale(' + (frame.clientWidth / 1920) + ')'; }
+  window.addEventListener('resize', fit); fit();
+
+  function dots(text, px, py, cell, color, grid, gridColor){
+    var r = cell*0.36, cx = px;
+    for (var i = 0; i < text.length; i++){ var g = F[text[i]] || F[" "];
+      for (var row = 0; row < 7; row++) for (var col = 0; col < 5; col++){ var lit = g[row][col] === "1"; if (!lit && !grid) continue;
+        x.beginPath(); x.arc(cx + col*cell + cell/2, py + row*cell + cell/2, lit ? r : r*0.7, 0, 6.2832); x.fillStyle = lit ? color : (gridColor||DOT); x.fill(); }
+      cx += cell*6; }
+  }
+  function textW(t, cell){ return t.length*cell*6 - cell; }
+  function bitmap(bm, px, py, cell, color){ var r = cell*0.42;
+    for (var row = 0; row < bm.length; row++) for (var col = 0; col < bm[0].length; col++) if (bm[row][col] === "1"){ x.beginPath(); x.arc(px + col*cell + cell/2, py + row*cell + cell/2, r, 0, 6.2832); x.fillStyle = color; x.fill(); } }
+
+  // ---------- sound (synthesized; same recipes go to the TV build) ----------
+  var AC = null, muted = false;
+  function audio(){ if (!AC){ try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ AC = null; } } if (AC && AC.state === 'suspended') AC.resume(); return AC; }
+  function tone(type, f0, f1, dur, gain){ var a = audio(); if (!a || muted) return; var o = a.createOscillator(), g = a.createGain(), t0 = a.currentTime;
+    o.type = type; o.frequency.setValueAtTime(f0, t0); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t0 + dur);
+    g.gain.setValueAtTime(gain, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); o.connect(g); g.connect(a.destination); o.start(t0); o.stop(t0 + dur); }
+  function noise(dur, gain){ var a = audio(); if (!a || muted) return; var n = a.sampleRate*dur, buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
+    for (var i = 0; i < n; i++) d[i] = (Math.random()*2 - 1) * (1 - i/n); var s = a.createBufferSource(), g = a.createGain(), f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 900;
+    s.buffer = buf; g.gain.value = gain; s.connect(f); f.connect(g); g.connect(a.destination); s.start(); }
+  var SFX = {
+    move: function(){ tone('square', 180, 180, 0.045, 0.08); },           // one tile step: short blip
+    fire: function(){ tone('sawtooth', 900, 180, 0.14, 0.12); },          // laser sweep down
+    hit:  function(){ noise(0.35, 0.5); tone('square', 120, 40, 0.3, 0.2); }, // burst + thump
+    march: (function(){ var k = 0, notes = [98, 87]; return function(){ tone('square', notes[k], notes[k], 0.08, 0.07); k = 1 - k; }; })(), // formation step, two alternating notes
+    meteor: function(){ tone('triangle', 300, 700, 0.25, 0.12); }
+  };
+  document.getElementById('mute').addEventListener('click', function(){ muted = !muted; this.textContent = muted ? 'Sound off' : 'Sound on'; this.className = muted ? '' : 'on'; });
+
+  // ---------- game ----------
+  var W = 1920, H = 1080, mode = 'start', t = 0, menuSel = 0;
+  var TILE = 64, COL0 = 160, COLS = 26, shipCol = 12, SHIPY = 900, SC = 6, SW = 13*SC, SH = 7*SC;
+  var INV_Y = 250, SPACING = 170, INV0 = 200, formX = 0, formDir = 1, FORM_RANGE = 110, FORM_STEP = 22, FORM_EVERY = 48, frameA = 0;
+  var METEOR = {x: 1700, y: 150, cell: 7};
+  var bullet = null, boom = null, hit = null, hitT = 0, shots = 0;
+  function invBox(i){ var sp = CRIT[i % 3][0], cell = 7, w = sp[0].length*cell, h = sp.length*cell; var cx = INV0 + i*SPACING + formX; return {x: cx - w/2, y: INV_Y - h/2, w: w, h: h, cx: cx, cy: INV_Y}; }
+  function meteorBox(){ var w = ROCK[0].length*METEOR.cell, h = ROCK.length*METEOR.cell; return {x: METEOR.x - w/2, y: METEOR.y - h/2 + Math.sin(t/40)*6, w: w, h: h, cx: METEOR.x, cy: METEOR.y}; }
+  function shipX(){ return COL0 + shipCol*TILE; }
+  function reset(){ bullet = null; boom = null; hit = null; hitT = 0; shots = 0; shipCol = 12; formX = 0; formDir = 1; }
+
+  function rainbow(){
+    var cell = 16, rows = 3, play = mode === 'play' || mode === 'crash', speed = play ? 1.2 : 0.5, sat = play ? 100 : 70, lum = play ? 55 : 42;
+    for (var row = 0; row < rows; row++) for (var gx = 0; gx < W; gx += cell){ var h = ((gx / W) * 360 + t * speed + row * 12) % 360;
+      x.fillStyle = 'hsl(' + h + ',' + sat + '%,' + lum + '%)'; x.beginPath(); x.arc(gx + cell/2, row*cell + cell/2, cell*0.34, 0, 6.2832); x.fill(); }
+    for (var gx2 = 0; gx2 < W; gx2 += 24){ var h2 = ((gx2 / W) * 360 + t * speed) % 360, g = x.createLinearGradient(0, rows*cell, 0, rows*cell + 200);
+      g.addColorStop(0, 'hsla(' + h2 + ',100%,55%,' + (play ? 0.22 : 0.10) + ')'); g.addColorStop(1, 'hsla(' + h2 + ',100%,55%,0)'); x.fillStyle = g; x.fillRect(gx2, rows*cell, 24, 200); }
+  }
+  function backdrop(){
+    x.fillStyle = '#0b0c0e'; x.fillRect(0,0,W,H);
+    x.fillStyle = '#16181c'; for (var gx = 12; gx < W; gx += 24) for (var gy = 60; gy < H; gy += 24){ x.beginPath(); x.arc(gx, gy, 1.6, 0, 6.2832); x.fill(); }
+    // tile rail the ship rides on
+    x.fillStyle = DIM; for (var c = 0; c < COLS; c++){ x.beginPath(); x.arc(COL0 + c*TILE, SHIPY + SH + 26, 3, 0, 6.2832); x.fill(); }
+    rainbow();
+  }
+  function drawInvaders(){
+    APPS.forEach(function(a, i){ if (hit && hit.app === a) return; var b = invBox(i), sp = CRIT[i % 3][frameA];
+      bitmap(sp, b.x, b.y, 7, a.c);
+      var cell = 3.5, w = textW(a.n, cell); dots(a.n, b.cx - w/2, b.y + b.h + 22, cell, MUTE, false); });
+    var m = meteorBox(); bitmap(ROCK, m.x, m.y, METEOR.cell, '#8f969f');
+    var cell = 3.5, w = textW("SETTINGS", cell); dots("SETTINGS", m.cx - w/2, m.y + m.h + 22, cell, MUTE, false);
+  }
+  function drawShip(){ bitmap(SHIP, shipX() - SW/2, SHIPY, SC, FG); }
+  function drawBullet(){ if (!bullet) return; x.fillStyle = FG; x.fillRect(bullet.x - 3, bullet.y, 6, 26); }
+  function drawBoom(){ if (!boom) return; var k = boom.t/14, r = 20 + k*70; x.strokeStyle = boom.c; x.lineWidth = 6*(1-k); x.globalAlpha = 1 - k;
+    for (var i = 0; i < 8; i++){ var ang = i*Math.PI/4; x.beginPath(); x.moveTo(boom.x + Math.cos(ang)*r*0.4, boom.y + Math.sin(ang)*r*0.4); x.lineTo(boom.x + Math.cos(ang)*r, boom.y + Math.sin(ang)*r); x.stroke(); }
+    x.globalAlpha = 1; }
+  function drawStart(){
+    var title = "SEEKER INVADERS", cell = 14, w = textW(title, cell); dots(title, (W - w)/2, 300, cell, FG, true);
+    if (Math.floor(t/30) % 2 === 0){ var s = "START", sc = 10, sw = textW(s, sc); dots(s, (W - sw)/2, 560, sc, FG, true); }
+    var h = "SHOOT A CRITTER TO OPEN IT", hc = 4, hw = textW(h, hc); dots(h, (W - hw)/2, 700, hc, DIM, false);
+    APPS.forEach(function(a, i){ var b = invBox(i); bitmap(CRIT[i % 3][frameA], b.x, b.y - 100, 5, DIM); });
+    drawShip();
+  }
+  function drawSettings(){
+    var items = ["APP LIST", "GREETING", "HIDDEN APPS", "SYSTEM SETTINGS", "BACK"], cell = 9, y = 300;
+    var h = "SETTINGS", hc = 12, hw = textW(h, hc); dots(h, (W - hw)/2, 160, hc, FG, true);
+    items.forEach(function(it, i){ var w = textW(it, cell); dots(it, (W - w)/2, y + i*110, cell, i === menuSel ? FG : DIM, i === menuSel); });
+  }
+  function drawTakeover(){
+    var k = Math.min(1, hitT/22), r = k*k*2300, app = hit.app;
+    x.fillStyle = app.c; x.beginPath(); x.arc(hit.x, hit.y, r, 0, 6.2832); x.fill();
+    if (hitT > 20){ var n = app.n, cell = n.length > 7 ? 18 : 24, w = textW(n, cell), faint = app.ink === '#fff' ? 'rgba(255,255,255,.22)' : 'rgba(0,0,0,.18)';
+      bitmap(CRIT[hit.i % 3][Math.floor(t/12) % 2], (W - 11*9)/2, 540 - 7*cell/2 - 120, 9, app.ink);
+      dots(n, (W - w)/2, 540 - 7*cell/2, cell, app.ink, true, faint);
+      x.fillStyle = app.ink; x.font = '500 22px ' + CSS.getPropertyValue('--mono'); x.textAlign = 'center'; x.letterSpacing = '0.3em'; x.fillText('OPENING', 960, 540 + 7*cell/2 + 70);
+      var s = "SHOTS " + shots, sc = 6, sw = textW(s, sc); dots(s, (W - sw)/2, 540 + 7*cell/2 + 120, sc, app.ink, false); }
+  }
+
+  function step(){
+    t++;
+    if (mode === 'play' || mode === 'start'){
+      if (t % FORM_EVERY === 0){ formX += formDir*FORM_STEP; if (formX > FORM_RANGE || formX < -FORM_RANGE){ formDir = -formDir; formX += formDir*FORM_STEP; } frameA = 1 - frameA; if (mode === 'play') SFX.march(); }
+    }
+    if (mode === 'play'){
+      if (bullet){ bullet.y -= 16; if (bullet.y < -30) bullet = null; }
+      if (bullet){
+        var hb = null, hi = -1;
+        APPS.forEach(function(a, i){ if (hb) return; var b = invBox(i); if (bullet.x > b.x - 6 && bullet.x < b.x + b.w + 6 && bullet.y < b.y + b.h && bullet.y + 26 > b.y){ hb = b; hi = i; } });
+        var m = meteorBox();
+        if (!hb && bullet.x > m.x - 6 && bullet.x < m.x + m.w + 6 && bullet.y < m.y + m.h && bullet.y + 26 > m.y){ bullet = null; boom = {x: m.cx, y: m.cy, c: '#8f969f', t: 0}; SFX.meteor(); mode = 'tosettings'; hitT = 0; }
+        else if (hb){ bullet = null; boom = {x: hb.cx, y: hb.cy, c: APPS[hi].c, t: 0}; hit = {app: APPS[hi], i: hi, x: hb.cx, y: hb.cy}; hitT = 0; SFX.hit(); mode = 'crash'; }
+      }
+    }
+    if (boom){ boom.t++; if (boom.t > 14) boom = null; }
+    if (mode === 'crash'){ hitT++; if (hitT > 130){ mode = 'start'; reset(); } }
+    if (mode === 'tosettings'){ hitT++; if (hitT > 16){ mode = 'settings'; menuSel = 0; } }
+    backdrop();
+    if (mode === 'start') drawStart();
+    else if (mode === 'settings') drawSettings();
+    else { drawInvaders(); drawShip(); drawBullet(); drawBoom(); if (mode === 'crash') drawTakeover(); }
+    requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+
+  stage.addEventListener('keydown', function(e){
+    if (e.repeat){ e.preventDefault(); return; }
+    var k = e.key; audio();
+    if (mode === 'start'){ if (k === 'Enter' || k === ' '){ reset(); mode = 'play'; SFX.move(); } }
+    else if (mode === 'play'){
+      if (k === 'ArrowLeft' && shipCol > 0){ shipCol--; SFX.move(); }
+      else if (k === 'ArrowRight' && shipCol < COLS - 1){ shipCol++; SFX.move(); }
+      else if ((k === 'Enter' || k === ' ') && !bullet){ bullet = {x: shipX(), y: SHIPY - 20}; shots++; SFX.fire(); }
+    }
+    else if (mode === 'settings'){
+      if (k === 'ArrowDown') menuSel = Math.min(4, menuSel+1); else if (k === 'ArrowUp') menuSel = Math.max(0, menuSel-1);
+      else if (k === 'Escape' || k === 'Backspace' || ((k === 'Enter' || k === ' ') && menuSel === 4)){ mode = 'start'; reset(); }
+    }
+    e.preventDefault();
+  });
+  stage.addEventListener('click', function(){ stage.focus(); audio(); });
+  document.getElementById('focus').addEventListener('click', function(){ stage.focus(); audio(); });
+})();
+</script>

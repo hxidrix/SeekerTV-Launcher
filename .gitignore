@@ -1,0 +1,34 @@
+# Android / Gradle
+.gradle/
+build/
+**/build/
+local.properties
+*.iml
+.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+!dist/
+!dist/*.apk
+
+# Signing: never commit keys
+*.jks
+*.keystore
+*.p12
+*.pem
+keystore.properties
+signing.properties
+# Local config and private notes
+.env
+.env.*
+!.env.example
+AUDIT.md
+INSTALL-LOG.md
+# TV snapshots and scratch
+restore-kit/snapshot-*/
+snapshot-*/
+tmp/
+*.tmp
+.DS_Store

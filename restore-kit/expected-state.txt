@@ -1,0 +1,57 @@
+# Expected state of the REFERENCE TV (a Hisense Google TV) after its debloat and the Seeker install.
+# post-update-check.sh compares your TV against this file. On your TV, only these lines matter for Seeker:
+#   the launcherx / setupwraith lines (disabled, no_process) and the home line (HOME = com.seeker.tv/.Home).
+# Everything else is the reference TV's optional debloat; it shows as DRIFT on a TV that never had it, which is fine.
+# Delete lines you don't want checked.
+# Expected TV state after debloat batches 1-4 + Projectivy accessibility (2026-10-20).
+# 2026-10-21 16:41: launcher swap attempt 2 succeeded: launcherx and setupwraith (its RecoveryActivity guard) disabled, HOME = Projectivy.
+# 2026-10-21 20:10: HOME = Seeker (com.seeker.tv/.Home, alias enabled by the app via com.seeker.tv.HOME_ALIAS). Projectivy stays installed as fallback.
+# 2026-10-21 20:18: window/transition animation scales marked accepted (any app start resets them to 1.0; Seeker re-applies 0.5). Projectivy accessibility override turned off (Seeker is HOME); Projectivy stays installed.
+# Format: <kind>|<key>|<expected value>|<re-apply command>
+# kinds: disabled = in `pm list packages -d`
+#        removed_user0 = uninstalled for user 0 (absent from `pm list packages`, present in `pm list packages -u`)
+#        removed = fully uninstalled Play app (absent from `pm list packages -u`)
+#        setting = `settings get <namespace> <name>` (key is "namespace name")
+#        accepted_setting = like setting, but a different value is an accepted drift: always PASS, the line says what it reads
+#        no_process = must not match in `ps -A`
+#        home = `cmd package resolve-activity ... HOME` component
+disabled|com.google.android.feedback||adb shell pm disable-user --user 0 com.google.android.feedback
+disabled|fusion.android.tv.demo||adb shell pm disable-user --user 0 fusion.android.tv.demo
+disabled|com.hisense.evservice||adb shell pm disable-user --user 0 com.hisense.evservice
+disabled|com.android.printspooler||adb shell pm disable-user --user 0 com.android.printspooler
+disabled|com.google.android.play.games||adb shell pm disable-user --user 0 com.google.android.play.games
+disabled|com.hisense.hibrowser||adb shell pm disable-user --user 0 com.hisense.hibrowser
+disabled|net.vidaatv.hisense.android.tv||adb shell pm disable-user --user 0 net.vidaatv.hisense.android.tv
+disabled|com.vidaa.oemtabcontentprovider||adb shell pm disable-user --user 0 com.vidaa.oemtabcontentprovider
+disabled|com.google.android.youtube.tvmusic||adb shell pm disable-user --user 0 com.google.android.youtube.tvmusic
+disabled|com.google.android.apps.tv.dreamx||adb shell pm disable-user --user 0 com.google.android.apps.tv.dreamx
+disabled|com.vt.miracast||adb shell pm disable-user --user 0 com.vt.miracast
+disabled|android.autoinstalls.config.google.gtvpai||adb shell pm disable-user --user 0 android.autoinstalls.config.google.gtvpai
+disabled|com.hisense.tv.smartservice||adb shell pm disable-user --user 0 com.hisense.tv.smartservice
+disabled|com.vt.tv.smartsense.ui||adb shell pm disable-user --user 0 com.vt.tv.smartsense.ui
+disabled|com.google.android.syncadapters.calendar||adb shell pm disable-user --user 0 com.google.android.syncadapters.calendar
+disabled|com.mstar.android.tv.disclaimercustomization||adb shell pm disable-user --user 0 com.mstar.android.tv.disclaimercustomization
+disabled|com.google.android.videos||adb shell pm disable-user --user 0 com.google.android.videos
+disabled|com.google.android.tungsten.setupwraith||adb shell pm disable-user --user 0 com.google.android.tungsten.setupwraith
+disabled|com.google.android.apps.tv.launcherx||adb shell pm disable-user --user 0 com.google.android.apps.tv.launcherx  (disable setupwraith FIRST or RecoveryActivity loops)
+removed_user0|com.hisense.tv.dlna||adb shell pm uninstall -k --user 0 com.hisense.tv.dlna
+removed_user0|com.vt.tv.homekitproxy||adb shell pm uninstall -k --user 0 com.vt.tv.homekitproxy
+removed_user0|com.hisense.tv.smartsense||adb shell pm uninstall -k --user 0 com.hisense.tv.smartsense
+removed|com.espn.score_center||adb uninstall com.espn.score_center
+removed|com.spotify.tv.android||adb uninstall com.spotify.tv.android
+removed|com.google.android.youtube.tvunplugged||adb uninstall com.google.android.youtube.tvunplugged
+setting|global private_dns_mode|hostname|adb shell settings put global private_dns_mode hostname
+setting|global private_dns_specifier|dns.adguard-dns.com|adb shell settings put global private_dns_specifier dns.adguard-dns.com
+setting|secure screensaver_components|com.android.dreams.basic/.Colors|adb shell settings put secure screensaver_components com.android.dreams.basic/.Colors
+setting|secure screensaver_default_component|com.android.dreams.basic/.Colors|adb shell settings put secure screensaver_default_component com.android.dreams.basic/.Colors
+accepted_setting|global window_animation_scale|0.5|adb shell settings put global window_animation_scale 0.5
+accepted_setting|global transition_animation_scale|0.5|adb shell settings put global transition_animation_scale 0.5
+setting|global animator_duration_scale|0.5|adb shell settings put global animator_duration_scale 0.5
+setting|secure enabled_accessibility_services||adb shell settings put secure enabled_accessibility_services '""'
+accepted_setting|secure accessibility_enabled|0|adb shell settings put secure accessibility_enabled 0
+no_process|dlna||adb shell pm uninstall -k --user 0 com.hisense.tv.dlna  (then adb reboot)
+no_process|homekit||adb shell pm uninstall -k --user 0 com.vt.tv.homekitproxy  (then adb reboot)
+no_process|smartsense||adb shell pm uninstall -k --user 0 com.hisense.tv.smartsense  (then adb reboot)
+no_process|launcherx||adb shell pm disable-user --user 0 com.google.android.apps.tv.launcherx  (then adb reboot)
+no_process|setupwraith||adb shell pm disable-user --user 0 com.google.android.tungsten.setupwraith  (then adb reboot)
+home|HOME|com.seeker.tv/.Home|adb shell am broadcast -a com.seeker.tv.HOME_ALIAS --ez enabled true; adb shell cmd package set-home-activity --user 0 com.seeker.tv/.Home  (fallback: set-home-activity --user 0 com.spocky.projengmenu/.ui.home.MainActivity)

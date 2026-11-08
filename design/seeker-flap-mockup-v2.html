@@ -1,0 +1,193 @@
+<title>Seeker Flap</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a 1920x1080 TV stage scaled to fit. Single dark theme by design: it is a TV screen. */
+:root {
+  --bg: #0b0c0e; --panel: #121316; --dot: #2a2d33; --fg: #e8e9eb; --mute: #70757e; --dim: #3b3f46; --line: #1f2126;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { margin: 0; background: var(--panel); color: var(--fg); font-family: var(--mono);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px; }
+.wrap { max-width: 1400px; margin: 0 auto; display: grid; gap: 12px; }
+.frame { position: relative; width: 100%; aspect-ratio: 16 / 9; max-width: 100%; overflow: hidden; border-radius: 6px; background: var(--bg); box-shadow: 0 0 0 1px var(--line); }
+.stage { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; transform-origin: 0 0; background: var(--bg); overflow: hidden; outline: none; }
+canvas { position: absolute; top: 0; left: 0; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; font-size: 13px; color: var(--mute); }
+button { font: inherit; font-size: 12px; letter-spacing: .06em; background: transparent; color: var(--mute); border: 1px solid var(--line); border-radius: 4px; padding: 6px 10px; cursor: pointer; }
+button:hover, button:focus-visible { color: var(--fg); border-color: var(--mute); outline: none; }
+.note { font-size: 13px; color: var(--mute); line-height: 1.5; max-width: 72ch; }
+</style>
+
+<div class="wrap">
+  <div class="frame" id="frame">
+    <div class="stage" id="stage" tabindex="0" aria-label="Seeker Flap. Enter to start and flap, arrow down for settings.">
+      <canvas id="c" width="1920" height="1080"></canvas>
+    </div>
+  </div>
+  <div class="controls">
+    <button id="focus">Click here, then Enter to start · Enter = flap · ↓ on the start screen = settings</button>
+  </div>
+  <p class="note">Playable mockup at 1920x1080. Enter is the remote's OK button. Crash into a tube and that service "opens" (brand takeover), then the game returns to START. Hit the floor or ceiling and it picks the next tube ahead of you. Tubes cycle through all eight services in a fresh random order before any repeats. The bird and tubes are our own dot-matrix drawings. The rainbow strip along the top is there to drive the TV's bias lighting; it runs calm on START and full brightness in play.</p>
+</div>
+
+<script>
+(function(){
+  var F = {
+  A:["01110","10001","10001","11111","10001","10001","10001"],B:["11110","10001","10001","11110","10001","10001","11110"],C:["01111","10000","10000","10000","10000","10000","01111"],D:["11110","10001","10001","10001","10001","10001","11110"],E:["11111","10000","10000","11110","10000","10000","11111"],F:["11111","10000","10000","11110","10000","10000","10000"],G:["01111","10000","10000","10111","10001","10001","01111"],H:["10001","10001","10001","11111","10001","10001","10001"],I:["11111","00100","00100","00100","00100","00100","11111"],J:["00001","00001","00001","00001","10001","10001","01110"],K:["10001","10010","10100","11000","10100","10010","10001"],L:["10000","10000","10000","10000","10000","10000","11111"],M:["10001","11011","10101","10101","10001","10001","10001"],N:["10001","11001","10101","10011","10001","10001","10001"],O:["01110","10001","10001","10001","10001","10001","01110"],P:["11110","10001","10001","11110","10000","10000","10000"],Q:["01110","10001","10001","10001","10101","10010","01101"],R:["11110","10001","10001","11110","10100","10010","10001"],S:["01111","10000","10000","01110","00001","00001","11110"],T:["11111","00100","00100","00100","00100","00100","00100"],U:["10001","10001","10001","10001","10001","10001","01110"],V:["10001","10001","10001","10001","01010","01010","00100"],W:["10001","10001","10001","10101","10101","11011","10001"],X:["10001","10001","01010","00100","01010","10001","10001"],Y:["10001","10001","01010","00100","00100","00100","00100"],Z:["11111","00001","00010","00100","01000","10000","11111"],
+  "0":["01110","10001","10011","10101","11001","10001","01110"],"1":["00100","01100","00100","00100","00100","00100","01110"],"2":["01110","10001","00001","00010","00100","01000","11111"],"3":["11111","00010","00100","00010","00001","10001","01110"],"4":["00010","00110","01010","10010","11111","00010","00010"],"5":["11111","10000","11110","00001","00001","10001","01110"],"6":["00111","01000","10000","11110","10001","10001","01110"],"7":["11111","00001","00010","00100","01000","01000","01000"],"8":["01110","10001","10001","01110","10001","10001","01110"],"9":["01110","10001","10001","01111","00001","00010","11100"],
+  " ":["00000","00000","00000","00000","00000","00000","00000"],"+":["00000","00100","00100","11111","00100","00100","00000"],"-":["00000","00000","00000","11111","00000","00000","00000"],"!":["00100","00100","00100","00100","00100","00000","00100"],">":["10000","01000","00100","00010","00100","01000","10000"]};
+  // our own bird, 11x8, two frames (wing up / down)
+  var BIRD = [
+   ["00001111000","00011111100","00111011110","01111111111","11111111100","01111111000","00011110000","00001100000"],
+   ["00001111000","00011111100","00111011110","11111111111","01111111100","00111111000","00011110000","00001100000"]];
+  var APPS = [
+    {n:"NETFLIX", c:"#E50914", ink:"#fff"},
+    {n:"YOUTUBE", c:"#FF0000", ink:"#fff"},
+    {n:"HULU", c:"#1CE783", ink:"#0b0c0e"},
+    {n:"PRIME", c:"#00A8E1", ink:"#0b0c0e"},
+    {n:"DISNEY+", c:"#2E6BFF", ink:"#fff"},
+    {n:"MAX", c:"#3D34FF", ink:"#fff"},
+    {n:"PEACOCK", c:"#FFC72C", ink:"#0b0c0e"},
+    {n:"APPLE TV", c:"#F5F5F7", ink:"#0b0c0e"}];
+  var stage = document.getElementById('stage'), frame = document.getElementById('frame');
+  var cv = document.getElementById('c'), x = cv.getContext('2d');
+  var CSS = getComputedStyle(document.documentElement), DOT = CSS.getPropertyValue('--dot').trim(), FG = CSS.getPropertyValue('--fg').trim(), DIM = CSS.getPropertyValue('--dim').trim(), MUTE = CSS.getPropertyValue('--mute').trim();
+  function fit(){ stage.style.transform = 'scale(' + (frame.clientWidth / 1920) + ')'; }
+  window.addEventListener('resize', fit); fit();
+
+  function dots(text, px, py, cell, color, grid, gridColor){
+    var r = cell*0.36, cx = px;
+    for (var i = 0; i < text.length; i++){ var g = F[text[i]] || F[" "];
+      for (var row = 0; row < 7; row++) for (var col = 0; col < 5; col++){ var lit = g[row][col] === "1"; if (!lit && !grid) continue;
+        x.beginPath(); x.arc(cx + col*cell + cell/2, py + row*cell + cell/2, lit ? r : r*0.7, 0, 6.2832); x.fillStyle = lit ? color : (gridColor||DOT); x.fill(); }
+      cx += cell*6; }
+  }
+  function textW(t, cell){ return t.length*cell*6 - cell; }
+  function bitmap(bm, px, py, cell, color){ var r = cell*0.42;
+    for (var row = 0; row < bm.length; row++) for (var col = 0; col < bm[0].length; col++) if (bm[row][col] === "1"){ x.beginPath(); x.arc(px + col*cell + cell/2, py + row*cell + cell/2, r, 0, 6.2832); x.fillStyle = color; x.fill(); } }
+
+  // ---------- game state ----------
+  var W = 1920, H = 1080, GROUND = 960, BX = 420, BW = 11*7, BH = 8*7;
+  var mode = 'start', menuSel = 0, by, vy, pipes, score, best = 0, t = 0, lastSpawn, crash = null, crashT = 0, wing = 0;
+  var GRAV = 0.40, FLAP = -10.2, SPEED = 4.8, GAP = 370, PW = 150, SPAWN = 125; // frames between pipes (tuned 2026-10-21 for TV latency)
+  function reset(){ by = 480; vy = 0; pipes = []; score = 0; t = 0; lastSpawn = -SPAWN; crash = null; }
+  reset();
+  // shuffle bag: every service appears once before any repeats, in a fresh random order each cycle
+  var bag = [], lastApp = null;
+  function nextApp(){
+    if (!bag.length){ bag = APPS.slice(); for (var i = bag.length - 1; i > 0; i--){ var j = Math.floor(Math.random()*(i+1)), tmp = bag[i]; bag[i] = bag[j]; bag[j] = tmp; }
+      if (bag[bag.length-1] === lastApp){ var t0 = bag[0]; bag[0] = bag[bag.length-1]; bag[bag.length-1] = t0; } }
+    lastApp = bag.pop(); return lastApp;
+  }
+  function spawn(){ var app = nextApp(), gy = 220 + Math.random()*(GROUND - 220 - GAP - 120);
+    pipes.push({x: W + 40, gy: gy, app: app, passed: false}); }
+  function flap(){ vy = FLAP; wing = 6; }
+
+  function drawBackdrop(){
+    x.fillStyle = '#0b0c0e'; x.fillRect(0,0,W,H);
+    x.fillStyle = '#16181c'; for (var gx = 12; gx < W; gx += 24) for (var gy = 12; gy < GROUND; gy += 24){ x.beginPath(); x.arc(gx, gy, 1.6, 0, 6.2832); x.fill(); }
+    // ground: a dotted rail that scrolls
+    var off = (t*SPEED) % 40;
+    x.fillStyle = DIM; for (var g = -off; g < W; g += 40){ x.beginPath(); x.arc(g, GROUND + 8, 4, 0, 6.2832); x.fill(); }
+    x.fillStyle = '#0e0f12'; x.fillRect(0, GROUND + 20, W, H - GROUND - 20);
+    rainbow();
+  }
+  // rainbow LED strip across the top: feeds the bias lighting. Full brightness in play, calm on START.
+  function rainbow(){
+    var cell = 16, rows = 3, speed = mode === 'play' || mode === 'crash' ? 1.6 : 0.5, sat = mode === 'play' || mode === 'crash' ? 100 : 70, lum = mode === 'play' || mode === 'crash' ? 55 : 42;
+    for (var row = 0; row < rows; row++) for (var gx = 0; gx < W; gx += cell){
+      var h = ((gx / W) * 360 + t * speed + row * 12) % 360;
+      x.fillStyle = 'hsl(' + h + ',' + sat + '%,' + lum + '%)';
+      x.beginPath(); x.arc(gx + cell/2, row*cell + cell/2, cell*0.34, 0, 6.2832); x.fill();
+    }
+    // soft glow bleeding down from the strip
+    for (var gx2 = 0; gx2 < W; gx2 += 24){
+      var h2 = ((gx2 / W) * 360 + t * speed) % 360, g = x.createLinearGradient(0, rows*cell, 0, rows*cell + 220);
+      g.addColorStop(0, 'hsla(' + h2 + ',100%,55%,' + (mode === 'play' || mode === 'crash' ? 0.28 : 0.12) + ')'); g.addColorStop(1, 'hsla(' + h2 + ',100%,55%,0)');
+      x.fillStyle = g; x.fillRect(gx2, rows*cell, 24, 220);
+    }
+  }
+  function drawPipe(p){
+    var c = p.app.c, top = p.gy, bot = p.gy + GAP;
+    x.fillStyle = c; x.fillRect(p.x, 0, PW, top); x.fillRect(p.x, bot, PW, GROUND - bot);
+    // caps
+    x.fillRect(p.x - 12, top - 44, PW + 24, 44); x.fillRect(p.x - 12, bot, PW + 24, 44);
+    // dark edge for depth
+    x.fillStyle = 'rgba(0,0,0,.28)'; x.fillRect(p.x + PW - 26, 0, 26, top - 44); x.fillRect(p.x + PW - 26, bot + 44, 26, GROUND - bot - 44);
+    // name runs along the tube like a spine, on whichever half is taller, shrunk to fit; never past the screen edge
+    var name = p.app.n, topH = top - 44, botH = GROUND - bot - 44, onTop = topH >= botH, avail = (onTop ? topH : botH) - 44, cell = 6;
+    while (cell > 3.5 && textW(name, cell) > avail) cell -= 0.5;
+    if (textW(name, cell) > avail) return;
+    var w = textW(name, cell), h = 7*cell, cx = p.x + PW/2;
+    x.save(); x.translate(cx, onTop ? top - 44 - 22 : bot + 44 + 22); x.rotate(-Math.PI/2);
+    dots(name, onTop ? 0 : -w, -h/2, cell, p.app.ink, false);
+    x.restore();
+  }
+  function drawBird(){ var fr = wing > 0 ? 1 : 0; x.save(); x.translate(BX + BW/2, by + BH/2); x.rotate(Math.max(-0.5, Math.min(0.9, vy/14))); bitmap(BIRD[fr], -BW/2, -BH/2, 7, FG); x.restore(); if (wing > 0) wing--; }
+  function drawScore(){ var s = String(score), cell = 12, w = textW(s, cell); dots(s, (W - w)/2, 110, cell, FG, true); }
+  function drawStart(){
+    var title = "SEEKER FLAP", cell = 16, w = textW(title, cell); dots(title, (W - w)/2, 300, cell, FG, true);
+    // blinking START, old-school
+    if (Math.floor(t/30) % 2 === 0 || menuSel === 1){ var s = "START", sc = 10, sw = textW(s, sc); dots(s, (W - sw)/2, 560, sc, menuSel === 0 ? FG : MUTE, menuSel === 0); }
+    var g = "SETTINGS", gc = 7, gw = textW(g, gc); dots(g, (W - gw)/2, 700, gc, menuSel === 1 ? FG : DIM, menuSel === 1);
+    if (best > 0){ var b = "BEST " + best, bc = 5, bw = textW(b, bc); dots(b, (W - bw)/2, 820, bc, MUTE, false); }
+    // bird idling
+    by = 480 + Math.sin(t/14)*14; vy = 0; drawBird();
+  }
+  function drawSettings(){
+    var items = ["APP LIST", "GREETING", "HIDDEN APPS", "SYSTEM SETTINGS", "BACK"], cell = 9, y = 300;
+    var h = "SETTINGS", hc = 12, hw = textW(h, hc); dots(h, (W - hw)/2, 160, hc, FG, true);
+    items.forEach(function(it, i){ var w = textW(it, cell); dots(it, (W - w)/2, y + i*110, cell, i === menuSel ? FG : DIM, i === menuSel); });
+  }
+  function drawCrash(){
+    var k = Math.min(1, crashT/22), r = k*k*2200, app = crash;
+    x.fillStyle = app.c; x.beginPath(); x.arc(BX + BW/2, by + BH/2, r, 0, 6.2832); x.fill();
+    if (crashT > 20){ var n = app.n, cell = n.length > 7 ? 18 : 24, w = textW(n, cell), faint = app.ink === '#fff' ? 'rgba(255,255,255,.22)' : 'rgba(0,0,0,.18)';
+      dots(n, (W - w)/2, 540 - 7*cell/2, cell, app.ink, true, faint);
+      x.fillStyle = app.ink; x.font = '500 22px ' + CSS.getPropertyValue('--mono'); x.textAlign = 'center'; x.letterSpacing = '0.3em';
+      x.fillText('OPENING', 960, 540 + 7*cell/2 + 70);
+      var s = "SCORE " + score, sc = 6, sw = textW(s, sc); dots(s, (W - sw)/2, 540 + 7*cell/2 + 120, sc, app.ink, false); }
+  }
+
+  function step(){
+    t++;
+    if (mode === 'play'){
+      vy += GRAV; by += vy;
+      if (t - lastSpawn >= SPAWN){ spawn(); lastSpawn = t; }
+      pipes.forEach(function(p){ p.x -= SPEED; if (!p.passed && p.x + PW < BX){ p.passed = true; score++; } });
+      pipes = pipes.filter(function(p){ return p.x > -PW - 40; });
+      // collisions
+      var hit = null;
+      pipes.forEach(function(p){ if (hit) return; var ox = BX + BW > p.x - 12 && BX < p.x + PW + 12; if (ox && (by < p.gy || by + BH > p.gy + GAP)) hit = p.app; });
+      if (!hit && (by + BH > GROUND || by < 0)){ var next = pipes.filter(function(p){ return p.x + PW > BX; })[0]; hit = next ? next.app : APPS[Math.floor(Math.random()*APPS.length)]; }
+      if (hit){ best = Math.max(best, score); crash = hit; crashT = 0; mode = 'crash'; }
+    }
+    if (mode === 'crash'){ crashT++; if (crashT > 130){ mode = 'start'; menuSel = 0; reset(); } }
+    drawBackdrop();
+    if (mode === 'start') drawStart();
+    else if (mode === 'settings') drawSettings();
+    else { pipes.forEach(drawPipe); drawBird(); drawScore(); if (mode === 'crash') drawCrash(); }
+    requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+
+  stage.addEventListener('keydown', function(e){
+    if (e.repeat) { e.preventDefault(); return; }
+    var k = e.key;
+    if (mode === 'start'){
+      if (k === 'ArrowDown') menuSel = 1; else if (k === 'ArrowUp') menuSel = 0;
+      else if (k === 'Enter' || k === ' '){ if (menuSel === 0){ reset(); mode = 'play'; flap(); } else { mode = 'settings'; menuSel = 0; } }
+    } else if (mode === 'play'){ if (k === 'Enter' || k === ' ') flap(); }
+    else if (mode === 'settings'){
+      if (k === 'ArrowDown') menuSel = Math.min(4, menuSel+1); else if (k === 'ArrowUp') menuSel = Math.max(0, menuSel-1);
+      else if (k === 'Escape' || k === 'Backspace' || ((k === 'Enter' || k === ' ') && menuSel === 4)){ mode = 'start'; menuSel = 0; }
+    }
+    e.preventDefault();
+  });
+  stage.addEventListener('click', function(){ stage.focus(); if (mode === 'play') flap(); });
+  document.getElementById('focus').addEventListener('click', function(){ stage.focus(); });
+})();
+</script>

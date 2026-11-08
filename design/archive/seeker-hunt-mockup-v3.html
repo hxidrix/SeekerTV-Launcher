@@ -1,0 +1,214 @@
+<title>Seeker Hunt</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a 1920x1080 TV stage scaled to fit. 8-bit daytime palette by design; this mode breaks the dot-matrix family. */
+:root {
+  --sky: #5c94fc; --skydeep: #3c78e8; --grass: #00a800; --grassdark: #007800; --dirt: #a06020; --ink: #000000; --paper: #fcfcfc; --panel: #121316; --mute: #70757e; --dim: #3b3f46; --line: #1f2126;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { margin: 0; background: var(--panel); color: var(--paper); font-family: var(--mono);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 16px; }
+.wrap { max-width: 1400px; margin: 0 auto; display: grid; gap: 12px; }
+.frame { position: relative; width: 100%; aspect-ratio: 16 / 9; max-width: 100%; overflow: hidden; border-radius: 6px; background: var(--sky); box-shadow: 0 0 0 1px var(--line); }
+.stage { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; transform-origin: 0 0; background: var(--sky); overflow: hidden; outline: none; }
+canvas { position: absolute; top: 0; left: 0; image-rendering: pixelated; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; font-size: 13px; color: var(--mute); }
+button { font: inherit; font-size: 12px; letter-spacing: .06em; background: transparent; color: var(--mute); border: 1px solid var(--line); border-radius: 4px; padding: 6px 10px; cursor: pointer; }
+button:hover, button:focus-visible { color: var(--paper); border-color: var(--mute); outline: none; }
+button.on { color: var(--paper); border-color: var(--paper); }
+.note { font-size: 13px; color: var(--mute); line-height: 1.5; max-width: 72ch; }
+</style>
+
+<div class="wrap">
+  <div class="frame" id="frame">
+    <div class="stage" id="stage" tabindex="0" aria-label="Seeker Hunt. Enter to start and shoot, left and right to lock onto the next bird.">
+      <canvas id="c" width="1920" height="1080"></canvas>
+    </div>
+  </div>
+  <div class="controls">
+    <button id="focus">Click here, then Enter to start · ← → lock the next bird · Enter = shoot</button>
+    <button id="mute" class="on">Sound on</button>
+  </div>
+  <p class="note">Playable mockup at 1920x1080, 8-bit style (square pixels, flat palette). Enter is the remote's OK button. The sight locks onto a bird on its own; ← → jump to the next bird left or right, and the dog stays put but turns to face whatever you're aiming at. About one shot in four misses. Hit a bird and that service "opens". The dog, ducks, scene and sounds are our own designs in the era's style.</p>
+</div>
+
+<script>
+(function(){
+  var F = {
+  A:["01110","10001","10001","11111","10001","10001","10001"],B:["11110","10001","10001","11110","10001","10001","11110"],C:["01111","10000","10000","10000","10000","10000","01111"],D:["11110","10001","10001","10001","10001","10001","11110"],E:["11111","10000","10000","11110","10000","10000","11111"],F:["11111","10000","10000","11110","10000","10000","10000"],G:["01111","10000","10000","10111","10001","10001","01111"],H:["10001","10001","10001","11111","10001","10001","10001"],I:["11111","00100","00100","00100","00100","00100","11111"],J:["00001","00001","00001","00001","10001","10001","01110"],K:["10001","10010","10100","11000","10100","10010","10001"],L:["10000","10000","10000","10000","10000","10000","11111"],M:["10001","11011","10101","10101","10001","10001","10001"],N:["10001","11001","10101","10011","10001","10001","10001"],O:["01110","10001","10001","10001","10001","10001","01110"],P:["11110","10001","10001","11110","10000","10000","10000"],Q:["01110","10001","10001","10001","10101","10010","01101"],R:["11110","10001","10001","11110","10100","10010","10001"],S:["01111","10000","10000","01110","00001","00001","11110"],T:["11111","00100","00100","00100","00100","00100","00100"],U:["10001","10001","10001","10001","10001","10001","01110"],V:["10001","10001","10001","10001","01010","01010","00100"],W:["10001","10001","10001","10101","10101","11011","10001"],X:["10001","10001","01010","00100","01010","10001","10001"],Y:["10001","10001","01010","00100","00100","00100","00100"],Z:["11111","00001","00010","00100","01000","10000","11111"],
+  "0":["01110","10001","10011","10101","11001","10001","01110"],"1":["00100","01100","00100","00100","00100","00100","01110"],"2":["01110","10001","00001","00010","00100","01000","11111"],"3":["11111","00010","00100","00010","00001","10001","01110"],"4":["00010","00110","01010","10010","11111","00010","00010"],"5":["11111","10000","11110","00001","00001","10001","01110"],"6":["00111","01000","10000","11110","10001","10001","01110"],"7":["11111","00001","00010","00100","01000","01000","01000"],"8":["01110","10001","10001","01110","10001","10001","01110"],"9":["01110","10001","10001","01111","00001","00010","11100"],
+  " ":["00000","00000","00000","00000","00000","00000","00000"],"+":["00000","00100","00100","11111","00100","00100","00000"],"-":["00000","00000","00000","11111","00000","00000","00000"],"!":["00100","00100","00100","00100","00100","00000","00100"],".":["00000","00000","00000","00000","00000","00000","00100"]};
+
+  // indexed pixel sprites: . transparent, b = brand/body, k = black, w = white, o = orange (beak/feet), d = dark body, g = gun gray, t = tan
+  // our own duck, 16x12, two wing frames (facing right)
+  var DUCK = [
+   ["........kkk.....","......kkbbbk....","......kbbbbkoo..","......kbkbbkooo.","......kbbbbk....","...kkkkbbbbk....","..kbbbbbbbbbbk..","kkbbbbbbbbbbbbk.",".kdddbbbbbbbbbk.","..kdddbbbbbbbk..","...kkkkkkkkkk...","....oo....oo...."],
+   ["........kkk.....","......kkbbbk....","......kbbbbkoo..","......kbkbbkooo.","......kbbbbk....","..kkkkkbbbbk....",".kdddddbbbbbbk..","kkddddbbbbbbbbk.",".kkkkbbbbbbbbbk.","....kbbbbbbbbk..","....kkkkkkkkk...","....oo....oo...."]];
+  // our own hound with a shotgun over his shoulder, 28x18: tan coat, white chest, floppy ear (d), eye (w), nose (n), tail up. Two frames: idle / ear-and-tail twitch. Faces right; flipped to face the locked duck.
+  var DOG = [
+   ["..........................gg","........................ggg.","......................ggg...","....................ggg.....","..k...............ggg.......",".ktk.........kkkkkkkk.......",".kttk.......ktttttttk.......","..kttkkkkkkkkttttttttkk.....","...kttttttttttttttttttkkk...","...kttttttttttttddtwkttttk..","...kttttttttttttddtttkkkttk.","...kwwtttttttttttdkkkk.knnk.","...kwwtttttttttk......kkkk..","....kttkk..kkttk............","....kttk....kttk............","....kttk....kttk............","....kttk....kttk............","...kkkkk...kkkkk............"],
+   ["..........................gg","........................ggg.","......................ggg...","....................ggg.....","...k..............ggg.......","..ktk........kkkkkkkk.......",".kttk.......ktttttttk.......","..kttkkkkkkkkttttttttkk.....","...kttttttttttttttttttkkk...","...ktttttttttttdddtwkttttk..","...kttttttttttttdtttkkkkttk.","...kwwtttttttttttkkkkk.knnk.","...kwwtttttttttk......kkkk..","....kttkk..kkttk............","....kttk....kttk............","....kttk....kttk............","....kttk....kttk............","...kkkkk...kkkkk............"]];
+  var SIGHT = ["....kkk....","....kwk....","..kkkwkkk..",".kwwwkwwwk.","kkwkkkkkwkk","kwwk...kwwk","kkwkkkkkwkk",".kwwwkwwwk.","..kkkwkkk..","....kwk....","....kkk...."];
+  var TREE = ["......gggggg......","....gggggggggg....","...gggGGGGgggg....","..ggGGGGGGGGggg...","..gGGGGGGGGGGgg...","..gGGGGGGGGGGgg...","...gGGGGGGGGgg....","....ggGGGGggg.....","......gggg........","........dd........","........dd........","........dd........","........dd........","......dddddd......"];
+  var BUSH = ["....ggggg....","..gggGGGggg..",".ggGGGGGGGgg.","gggGGGGGGGggg","gggggggggggg."];
+  var CLOUD = ["....wwww.....",".wwwwwwwwww..","wwwwwwwwwwwww","wwwwwwwwwwwww"];
+  var APPS = [
+    {n:"NETFLIX", c:"#E50914", d:"#9c0810", ink:"#fff"}, {n:"YOUTUBE", c:"#FF0000", d:"#a80000", ink:"#fff"}, {n:"HULU", c:"#1CE783", d:"#10944f", ink:"#000"}, {n:"PRIME", c:"#00A8E1", d:"#006e95", ink:"#000"},
+    {n:"DISNEY+", c:"#2E6BFF", d:"#1c45b0", ink:"#fff"}, {n:"MAX", c:"#3D34FF", d:"#2820a8", ink:"#fff"}, {n:"PEACOCK", c:"#FFC72C", d:"#b58a18", ink:"#000"}, {n:"APPLE TV", c:"#FCFCFC", d:"#a0a0a0", ink:"#000"}];
+  var PAL = {k:"#000000", w:"#fcfcfc", o:"#f8a000", g:"#00a800", G:"#00d800", d:"#8c4800", t:"#d8a060", n:"#3c3c3c"};
+  var DOGPAL = {g: '#4c4c4c', d: '#a06020'};   // gun gray, ear a darker tan than the coat
+
+  var stage = document.getElementById('stage'), frame = document.getElementById('frame');
+  var cv = document.getElementById('c'), x = cv.getContext('2d');
+  var CSS = getComputedStyle(document.documentElement);
+  var SKY = CSS.getPropertyValue('--sky').trim(), GRASS = CSS.getPropertyValue('--grass').trim(), GRASSD = CSS.getPropertyValue('--grassdark').trim(), INK = '#000000', PAPER = '#fcfcfc', GRAY = '#7c7c7c';
+  function fit(){ stage.style.transform = 'scale(' + (frame.clientWidth / 1920) + ')'; }
+  window.addEventListener('resize', fit); fit();
+
+  // square-pixel text (5x7 font), with an optional 1-px drop shadow
+  function text(s, px, py, cell, color, shadow){
+    var cx = px;
+    for (var i = 0; i < s.length; i++){ var g = F[s[i]] || F[" "];
+      for (var row = 0; row < 7; row++) for (var col = 0; col < 5; col++) if (g[row][col] === "1"){
+        if (shadow){ x.fillStyle = shadow; x.fillRect(cx + col*cell + cell*0.5, py + row*cell + cell*0.5, cell, cell); }
+        x.fillStyle = color; x.fillRect(cx + col*cell, py + row*cell, cell, cell); }
+      cx += cell*6; }
+  }
+  function textW(t, cell){ return t.length*cell*6 - cell; }
+  function sprite(bm, px, py, cell, pal, flip){ var w = bm[0].length;
+    for (var row = 0; row < bm.length; row++) for (var col = 0; col < w; col++){ var ch = bm[row][col]; if (ch === '.') continue; var c = pal[ch] || PAL[ch]; if (!c) continue;
+      var cc = flip ? (w - 1 - col) : col; x.fillStyle = c; x.fillRect(px + cc*cell, py + row*cell, cell, cell); } }
+
+  // ---------- sound (synthesized, our own) ----------
+  var AC = null, muted = false;
+  function audio(){ if (!AC){ try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ AC = null; } } if (AC && AC.state === 'suspended') AC.resume(); return AC; }
+  function tone(type, f0, f1, dur, gain, delay){ var a = audio(); if (!a || muted) return; var o = a.createOscillator(), g = a.createGain(), t0 = a.currentTime + (delay||0);
+    o.type = type; o.frequency.setValueAtTime(f0, t0); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t0 + dur);
+    g.gain.setValueAtTime(gain, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); o.connect(g); g.connect(a.destination); o.start(t0); o.stop(t0 + dur); }
+  function noise(dur, gain, cutoff){ var a = audio(); if (!a || muted) return; var n = a.sampleRate*dur, buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
+    for (var i = 0; i < n; i++) d[i] = (Math.random()*2 - 1) * (1 - i/n); var s = a.createBufferSource(), g = a.createGain(), f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cutoff || 1200;
+    s.buffer = buf; g.gain.value = gain; s.connect(f); f.connect(g); g.connect(a.destination); s.start(); }
+  var SFX = {
+    lock:  function(){ tone('square', 1200, 1200, 0.03, 0.06); },
+    shot:  function(){ noise(0.22, 0.6, 2000); tone('square', 160, 50, 0.18, 0.25); },
+    miss:  function(){ tone('triangle', 420, 300, 0.12, 0.12); tone('triangle', 300, 200, 0.18, 0.12, 0.12); },
+    hit:   function(){ tone('square', 523, 523, 0.07, 0.12); tone('square', 659, 659, 0.07, 0.12, 0.07); tone('square', 784, 784, 0.12, 0.12, 0.14); },
+    yip:   function(){ tone('square', 700, 900, 0.06, 0.1); tone('square', 900, 650, 0.08, 0.1, 0.08); },
+    step:  function(){ tone('square', 90, 70, 0.03, 0.04); },        // now: the dog pivoting to face the other way
+    flap:  function(){ tone('square', 2200, 1800, 0.02, 0.02); }
+  };
+  document.getElementById('mute').addEventListener('click', function(){ muted = !muted; this.textContent = muted ? 'Sound off' : 'Sound on'; this.className = muted ? '' : 'on'; });
+
+  // ---------- game ----------
+  var W = 1920, H = 1080, GROUND = 840, mode = 'start', t = 0, menuSel = 0, MISS_RATE = 0.25, PX = 6;
+  var birds = [], target = 0, sight = {x: 960, y: 400}, dog = {x: 960, dir: 1, frame: 0, stepT: 0, hop: 0}, shots = 0, flash = 0, hit = null, hitT = 0, missT = 0, missAt = null;
+  function makeBirds(){ birds = APPS.map(function(a, i){ return {app: a, x: 200 + i*200 + Math.random()*80, y: 180 + (i % 4)*95 + Math.random()*40, vx: (Math.random() < 0.5 ? -1 : 1) * (1.2 + Math.random()*1.2), ph: Math.random()*6.28, flee: 0, fall: 0}; }); }
+  function reset(){ makeBirds(); target = 0; shots = 0; flash = 0; hit = null; hitT = 0; missT = 0; missAt = null; dog.x = 960; }
+  var DW = 16*PX, DH = 12*PX;
+  function nextTarget(dir){ var cur = birds[target], best = -1, bestD = 1e9;
+    birds.forEach(function(b, i){ if (i === target || b.fall) return; var d = (b.x - cur.x) * dir; if (d > 10 && d < bestD){ bestD = d; best = i; } });
+    if (best >= 0){ target = best; SFX.lock(); } }
+
+  function backdrop(){
+    x.fillStyle = SKY; x.fillRect(0, 0, W, GROUND);
+    // flat sky bands like an old CRT scene, then clouds, tree, bushes, grass
+    x.fillStyle = '#6ca4fc'; x.fillRect(0, 0, W, 180);
+    sprite(CLOUD, 300, 120 + Math.sin(t/90)*4, 8, {}); sprite(CLOUD, 1250, 90 + Math.sin(t/70 + 2)*4, 10, {});
+    sprite(TREE, 60, GROUND - 14*18 + 6, 18, {});
+    sprite(BUSH, 1500, GROUND - 5*14 + 4, 14, {}); sprite(BUSH, 1720, GROUND - 5*12 + 4, 12, {});
+    x.fillStyle = GRASS; x.fillRect(0, GROUND, W, H - GROUND);
+    x.fillStyle = GRASSD; for (var g = 0; g < W; g += 24){ var hgt = 12 + ((g*7) % 4)*6; x.fillRect(g, GROUND - hgt, 6, hgt); x.fillRect(g + 10, GROUND + 60 + ((g*3) % 5)*20, 6, 12); }
+    x.fillStyle = '#007800'; x.fillRect(0, H - 90, W, 90);
+  }
+  function drawBirds(){
+    birds.forEach(function(b, i){ if (hit && hit.i === i) return;
+      var fr = Math.floor(t/8 + b.ph*3) % 2;
+      sprite(DUCK[fr], b.x - DW/2, b.y - DH/2, PX, {b: b.app.c, d: b.app.d}, b.vx < 0);
+      var w = textW(b.app.n, 4); text(b.app.n, b.x - w/2, b.y + DH/2 + 14, 4, i === target ? PAPER : INK, i === target ? INK : null); });
+  }
+  function drawDog(){ var cell = 6, w = 28*cell, h = 18*cell, y = GROUND - h + 10 - dog.hop; sprite(DOG[dog.frame], dog.x - w/2, y, cell, DOGPAL, dog.dir < 0); }
+  function drawSight(){
+    var cell = 6, w = 11*cell; sprite(SIGHT, sight.x - w/2, sight.y - w/2, cell, {w: birds[target].app.c});
+    if (flash > 0){ x.fillStyle = 'rgba(252,252,252,' + (flash/6) + ')'; x.fillRect(sight.x - 70 - (6-flash)*14, sight.y - 70 - (6-flash)*14, 140 + (6-flash)*28, 140 + (6-flash)*28); }
+    if (missT > 0 && missAt){ var s = "MISSED", c = 7, sw = textW(s, c); text(s, missAt.x - sw/2, missAt.y - 100, c, PAPER, INK); }
+  }
+  function drawHud(){ var s = "SHOTS " + shots, cell = 6, w = textW(s, cell); text(s, W - 150 - w, 70, cell, PAPER, INK); }
+  function drawStart(){
+    var title = "SEEKER HUNT", cell = 16, w = textW(title, cell); text(title, (W - w)/2, 250, cell, PAPER, INK);
+    if (Math.floor(t/30) % 2 === 0 || menuSel === 1){ var s = "START", sc = 10, sw = textW(s, sc); text(s, (W - sw)/2, 500, sc, menuSel === 0 ? PAPER : GRAY, INK); }
+    var g = "SETTINGS", gc = 7, gw = textW(g, gc); text(g, (W - gw)/2, 640, gc, menuSel === 1 ? PAPER : GRAY, INK);
+    birds.forEach(function(b){ b.x += b.vx; if (b.x < 120 || b.x > W - 120) b.vx = -b.vx; b.y += Math.sin(t/20 + b.ph)*0.6; });
+    birds.forEach(function(b){ sprite(DUCK[Math.floor(t/8 + b.ph*3) % 2], b.x - DW/2, b.y - DH/2 - 60, PX, {b: b.app.c, d: b.app.d}, b.vx < 0); });
+    dog.frame = (t % 90) < 12 ? 1 : 0; drawDog();
+  }
+  function drawSettings(){
+    x.fillStyle = INK; x.fillRect(380, 150, 1160, 780); x.fillStyle = PAPER; x.fillRect(392, 162, 1136, 756); x.fillStyle = INK; x.fillRect(404, 174, 1112, 732);
+    var items = ["APP LIST", "GREETING", "HIDDEN APPS", "SOUND", "SYSTEM SETTINGS", "BACK"], cell = 8, y = 300;
+    var h = "SETTINGS", hc = 11, hw = textW(h, hc); text(h, (W - hw)/2, 200, hc, PAPER);
+    items.forEach(function(it, i){ var w = textW(it, cell); text(it, (W - w)/2, y + i*95, cell, i === menuSel ? PAPER : GRAY); if (i === menuSel) text(">", (W - w)/2 - 60, y + i*95, cell, PAPER); });
+  }
+  function drawTakeover(){
+    var k = Math.min(1, hitT/22), r = k*k*2300, app = hit.app;
+    x.fillStyle = app.c; x.beginPath(); x.arc(hit.x, hit.y, r, 0, 6.2832); x.fill();
+    if (hitT > 20){ var n = app.n, cell = n.length > 7 ? 18 : 24, w = textW(n, cell), ink = app.ink === '#fff' ? PAPER : INK;
+      sprite(DUCK[Math.floor(t/8) % 2], (W - 16*9)/2, 540 - 7*cell/2 - 140, 9, {b: ink, d: ink}, false);
+      text(n, (W - w)/2, 540 - 7*cell/2, cell, ink);
+      x.fillStyle = ink; x.font = '500 22px ' + CSS.getPropertyValue('--mono'); x.textAlign = 'center'; x.letterSpacing = '0.3em'; x.fillText('OPENING', 960, 540 + 7*cell/2 + 70);
+      var s = "SHOTS " + shots, sc = 6, sw = textW(s, sc); text(s, (W - sw)/2, 540 + 7*cell/2 + 120, sc, ink); }
+  }
+  F[">"] = ["10000","01000","00100","00010","00100","01000","10000"];
+
+  function step(){
+    t++;
+    if (mode === 'play' || mode === 'crash'){
+      birds.forEach(function(b){
+        if (b.fall){ b.y += 9; return; }
+        var sp = b.flee > 0 ? 3.5 : 1; b.x += b.vx*sp; if (b.x < 120 || b.x > W - 120) b.vx = -b.vx;
+        b.y += Math.sin(t/20 + b.ph)*0.8 + (b.flee > 0 ? -1.5 : 0); if (b.y < 130) b.y = 130; if (b.y > GROUND - 150) b.y = GROUND - 150;
+        if (b.flee > 0) b.flee--; });
+      var tb = birds[target]; sight.x += (tb.x - sight.x)*0.18; sight.y += (tb.y - sight.y)*0.18;
+      // the dog stays put and pivots to face the locked duck; idle ear-and-tail twitch while he waits
+      var want = tb.x >= dog.x ? 1 : -1; if (want !== dog.dir && mode === 'play'){ dog.dir = want; SFX.step(); }
+      dog.frame = (t % 90) < 12 ? 1 : 0;
+      if (dog.hop > 0) dog.hop = Math.max(0, dog.hop - 2);
+      if (flash > 0) flash--; if (missT > 0) missT--;
+    }
+    if (mode === 'crash'){ hitT++; if (hitT > 130){ mode = 'start'; menuSel = 0; reset(); } }
+    backdrop();
+    if (mode === 'start') drawStart();
+    else if (mode === 'settings') drawSettings();
+    else { drawBirds(); drawDog(); drawSight(); drawHud(); if (mode === 'crash') drawTakeover(); }
+    requestAnimationFrame(step);
+  }
+  makeBirds(); requestAnimationFrame(step);
+
+  function shoot(){
+    shots++; flash = 6; SFX.shot(); var b = birds[target];
+    if (Math.random() < MISS_RATE){ missT = 70; missAt = {x: b.x, y: b.y}; b.flee = 60; setTimeout(SFX.miss, 120); setTimeout(function(){ SFX.yip(); dog.hop = 26; }, 420); return; }
+    b.fall = 1; hit = {app: b.app, i: target, x: b.x, y: b.y}; hitT = 0; mode = 'crash'; setTimeout(SFX.hit, 100); dog.hop = 30;
+  }
+
+  stage.addEventListener('keydown', function(e){
+    if (e.repeat){ e.preventDefault(); return; }
+    var k = e.key; audio();
+    if (mode === 'start'){
+      if (k === 'ArrowDown') menuSel = 1; else if (k === 'ArrowUp') menuSel = 0;
+      else if (k === 'Enter' || k === ' '){ if (menuSel === 0){ reset(); mode = 'play'; SFX.lock(); } else { mode = 'settings'; menuSel = 0; } }
+    }
+    else if (mode === 'play'){
+      if (k === 'ArrowLeft') nextTarget(-1); else if (k === 'ArrowRight') nextTarget(1);
+      else if ((k === 'Enter' || k === ' ') && flash === 0) shoot();
+    }
+    else if (mode === 'settings'){
+      if (k === 'ArrowDown') menuSel = Math.min(5, menuSel+1); else if (k === 'ArrowUp') menuSel = Math.max(0, menuSel-1);
+      else if (k === 'Escape' || k === 'Backspace' || ((k === 'Enter' || k === ' ') && menuSel === 5)){ mode = 'start'; menuSel = 0; }
+    }
+    e.preventDefault();
+  });
+  stage.addEventListener('click', function(){ stage.focus(); audio(); });
+  document.getElementById('focus').addEventListener('click', function(){ stage.focus(); audio(); });
+})();
+</script>

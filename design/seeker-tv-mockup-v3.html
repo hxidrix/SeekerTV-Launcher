@@ -1,0 +1,354 @@
+<title>Seeker TV</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a 1920x1080 TV stage scaled to fit, controls strip beneath. Single dark theme by design: it is a TV screen. */
+:root {
+  --bg: #0b0c0e;        /* screen black, slightly cool */
+  --panel: #121316;     /* page ground around the TV */
+  --dot: #2a2d33;       /* unlit matrix dot */
+  --fg: #e8e9eb;        /* lit matrix, primary text */
+  --mute: #70757e;      /* idle app names */
+  --dim: #3b3f46;       /* far app names */
+  --line: #1f2126;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--panel); color: var(--fg);
+  font-family: var(--mono);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px;
+}
+.wrap { max-width: 1400px; margin: 0 auto; display: grid; gap: 12px; }
+.frame { position: relative; width: 100%; aspect-ratio: 16 / 9; max-width: 100%; overflow: hidden; border-radius: 6px; background: var(--bg); box-shadow: 0 0 0 1px var(--line); }
+.stage {
+  position: absolute; top: 0; left: 0; width: 1920px; height: 1080px;
+  transform-origin: 0 0; background: var(--bg); overflow: hidden; outline: none;
+  background-image: radial-gradient(circle, #16181c 1.6px, transparent 1.8px);
+  background-size: 24px 24px; background-position: 12px 12px;
+}
+.glow { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .35s, background .35s; }
+#matrix, #gear { position: absolute; top: 0; left: 0; }
+.list { position: absolute; left: 150px; top: 0; height: 1080px; width: 1000px; }
+.app {
+  position: absolute; left: 0; top: 0; display: block; transform-origin: 0 50%;
+  transition: transform .3s cubic-bezier(.2,.7,.2,1), opacity .3s, outline-color .2s; cursor: pointer;
+  outline: 2px dashed transparent; outline-offset: 16px; border-radius: 4px;
+}
+.app.move { outline-color: var(--c); }
+.cursor { position: absolute; left: 96px; top: 540px; width: 10px; height: 10px; border-radius: 50%; background: var(--c, #e8e9eb); transform: translateY(-50%); box-shadow: 0 0 18px var(--c, #e8e9eb); transition: background .22s, box-shadow .22s; }
+.cursor.move { animation: bob 1s ease-in-out infinite; }
+.cursor.off { opacity: .25; }
+@keyframes bob { 0%,100% { transform: translateY(-50%) translateY(-10px) } 50% { transform: translateY(-50%) translateY(10px) } }
+.hint { position: absolute; left: 150px; bottom: 56px; font-size: 20px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); transition: color .2s; }
+.hint.move { color: var(--fg); }
+.gearlabel { position: absolute; right: 150px; bottom: 56px; font-size: 20px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); opacity: 0; transition: opacity .2s; }
+.gearlabel.on { opacity: 1; color: var(--fg); }
+.takeover { position: absolute; width: 40px; height: 40px; border-radius: 50%; transform: translate(-50%,-50%) scale(0); background: var(--c); pointer-events: none; }
+.takeover.go { transition: transform .55s cubic-bezier(.3,0,.1,1); transform: translate(-50%,-50%) scale(130); }
+#launch { position: absolute; top: 0; left: 0; opacity: 0; transition: opacity .25s; pointer-events: none; }
+#launch.on { opacity: 1; transition-delay: .35s; }
+/* toast */
+.toast {
+  position: absolute; left: 150px; top: 110px; transform: translateX(-130%); opacity: 0;
+  background: #0e0f12; border: 1px solid var(--line); border-left: 4px solid var(--tc, #e8e9eb);
+  padding: 22px 30px 22px 26px; display: grid; grid-template-columns: auto 1fr; gap: 10px 26px; align-items: center;
+  transition: transform .45s cubic-bezier(.2,.8,.2,1), opacity .3s; box-shadow: 0 20px 60px rgba(0,0,0,.6); width: 620px; box-sizing: border-box;
+}
+.toast.on { transform: translateX(0); opacity: 1; }
+.toast canvas { grid-row: 1 / 3; }
+.toast .t-title { font-size: 22px; letter-spacing: .08em; text-transform: uppercase; color: var(--fg); }
+.toast .t-body { font-size: 20px; color: var(--mute); line-height: 1.4; }
+.toast .t-src { position: absolute; right: 26px; top: 14px; font-size: 14px; letter-spacing: .14em; color: var(--dim); text-transform: uppercase; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; font-size: 13px; color: var(--mute); }
+.controls .group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.controls .label { text-transform: uppercase; letter-spacing: .12em; font-size: 11px; color: var(--dim); margin-right: 4px; }
+button { font: inherit; font-size: 12px; letter-spacing: .06em; background: transparent; color: var(--mute); border: 1px solid var(--line); border-radius: 4px; padding: 6px 10px; cursor: pointer; }
+button:hover, button:focus-visible { color: var(--fg); border-color: var(--mute); outline: none; }
+button.on { color: var(--fg); border-color: var(--fg); }
+.note { font-size: 13px; color: var(--mute); line-height: 1.5; max-width: 72ch; }
+@media (prefers-reduced-motion: reduce) { .app, .takeover.go, #launch, .glow, .toast { transition: none; } .cursor.move { animation: none; } }
+</style>
+
+<div class="wrap">
+  <div class="frame" id="frame">
+    <div class="stage" id="stage" tabindex="0" aria-label="Seeker TV home screen mockup. Arrow keys move, Enter launches, hold Enter to reorder.">
+      <div class="glow" id="glow"></div>
+      <canvas id="matrix" width="1920" height="1080"></canvas>
+      <div class="cursor" id="cursor"></div>
+      <div class="list" id="list"></div>
+      <canvas id="gear" width="1920" height="1080"></canvas>
+      <div class="toast" id="toast">
+        <canvas id="toasticon" width="54" height="54"></canvas>
+        <div class="t-title" id="t-title">Code · Build done</div>
+        <div class="t-body" id="t-body">Restore kit finished. 4 scripts written, post-update check PASS.</div>
+        <div class="t-src">Mac · 16:21</div>
+      </div>
+      <div class="takeover" id="takeover"></div>
+      <canvas id="launch" width="1920" height="1080"></canvas>
+    </div>
+  </div>
+  <div class="controls">
+    <div class="group"><span class="label">Greeting</span><button id="g-seeker" class="on">Hello Seeker</button><button id="g-name">Hello Friend</button></div>
+    <div class="group"><span class="label">Weather</span><button data-w="sun" class="on">Sun</button><button data-w="cloud">Cloud</button><button data-w="rain">Rain</button><button data-w="snow">Snow</button><button data-w="storm">Storm</button></div>
+    <div class="group"><span class="label">Demo</span><button id="d-scroll">Scroll</button><button id="d-launch">Launch</button><button id="d-reorder">Reorder</button><button id="d-toast">Toast</button></div>
+  </div>
+  <p class="note">Approved design, v3. Click the screen, then ↑ ↓ to spin, Enter to open, hold Enter (0.6 s) for reorder mode (↑ ↓ moves the app, Enter drops it). → jumps to the settings gear, ← comes back. Weather and temperature are sample values; the real launcher pulls the WEATHER LOCATION setting from Open-Meteo. On the TV, the launch screen also shows the app's own icon.</p>
+</div>
+
+<script>
+(function(){
+  // ---------- 5x7 dot font ----------
+  var F = {
+  A:["01110","10001","10001","11111","10001","10001","10001"],
+  B:["11110","10001","10001","11110","10001","10001","11110"],
+  C:["01111","10000","10000","10000","10000","10000","01111"],
+  D:["11110","10001","10001","10001","10001","10001","11110"],
+  E:["11111","10000","10000","11110","10000","10000","11111"],
+  F:["11111","10000","10000","11110","10000","10000","10000"],
+  G:["01111","10000","10000","10111","10001","10001","01111"],
+  H:["10001","10001","10001","11111","10001","10001","10001"],
+  I:["11111","00100","00100","00100","00100","00100","11111"],
+  J:["00001","00001","00001","00001","10001","10001","01110"],
+  K:["10001","10010","10100","11000","10100","10010","10001"],
+  L:["10000","10000","10000","10000","10000","10000","11111"],
+  M:["10001","11011","10101","10101","10001","10001","10001"],
+  N:["10001","11001","10101","10011","10001","10001","10001"],
+  O:["01110","10001","10001","10001","10001","10001","01110"],
+  P:["11110","10001","10001","11110","10000","10000","10000"],
+  Q:["01110","10001","10001","10001","10101","10010","01101"],
+  R:["11110","10001","10001","11110","10100","10010","10001"],
+  S:["01111","10000","10000","01110","00001","00001","11110"],
+  T:["11111","00100","00100","00100","00100","00100","00100"],
+  U:["10001","10001","10001","10001","10001","10001","01110"],
+  V:["10001","10001","10001","10001","01010","01010","00100"],
+  W:["10001","10001","10001","10101","10101","11011","10001"],
+  X:["10001","10001","01010","00100","01010","10001","10001"],
+  Y:["10001","10001","01010","00100","00100","00100","00100"],
+  Z:["11111","00001","00010","00100","01000","10000","11111"],
+  "0":["01110","10001","10011","10101","11001","10001","01110"],
+  "1":["00100","01100","00100","00100","00100","00100","01110"],
+  "2":["01110","10001","00001","00010","00100","01000","11111"],
+  "3":["11111","00010","00100","00010","00001","10001","01110"],
+  "4":["00010","00110","01010","10010","11111","00010","00010"],
+  "5":["11111","10000","11110","00001","00001","10001","01110"],
+  "6":["00111","01000","10000","11110","10001","10001","01110"],
+  "7":["11111","00001","00010","00100","01000","01000","01000"],
+  "8":["01110","10001","10001","01110","10001","10001","01110"],
+  "9":["01110","10001","10001","01111","00001","00010","11100"],
+  " ":["00000","00000","00000","00000","00000","00000","00000"],
+  ":":["00000","00100","00100","00000","00100","00100","00000"],
+  "°":["01100","10010","01100","00000","00000","00000","00000"],
+  "+":["00000","00100","00100","11111","00100","00100","00000"],
+  "-":["00000","00000","00000","11111","00000","00000","00000"],
+  ".":["00000","00000","00000","00000","00000","00000","00100"],
+  "!":["00100","00100","00100","00100","00100","00000","00100"],
+  "/":["00001","00001","00010","00100","01000","10000","10000"],
+  "&":["01100","10010","10100","01000","10101","10010","01101"]};
+
+  var ICONS = {
+  sun:  ["000010000","010000010","000111000","001111100","101111101","001111100","000111000","010000010","000010000"],
+  cloud:["000000000","000011100","000111110","011111111","111111111","111111111","011111110","000000000","000000000"],
+  rain: ["000011100","000111110","011111111","111111111","011111110","000000000","010010010","001001001","010010010"],
+  snow: ["000011100","000111110","011111111","111111111","011111110","000000000","010010010","000000000","001001001"],
+  storm:["000011100","000111110","011111111","111111111","011111110","000011000","000110000","001111000","000010000"],
+  gear: ["000010000","010111010","001111100","011101110","111000111","011101110","001111100","010111010","000010000"],
+  bell: ["000010000","000111000","001111100","001111100","001111100","011111110","111111111","000000000","000111000"]};
+  var TEMPS = {sun:"68°", cloud:"61°", rain:"54°", snow:"29°", storm:"58°"};
+
+  // ---------- apps (brand colors; on the TV the app's own icon is used on the launch screen) ----------
+  var APPS = [
+    {n:"Netflix", c:"#E50914"},
+    {n:"YouTube", c:"#FF0000", parts:[["YOU","#FF0000"],["TUBE","#FFFFFF"]]},
+    {n:"Hulu", c:"#1CE783"},
+    {n:"Prime Video", c:"#00A8E1"},
+    {n:"Disney+", c:"#2E6BFF"},
+    {n:"Max", c:"#3D34FF"},
+    {n:"Peacock", c:"#FFC72C"},
+    {n:"Apple TV", c:"#F5F5F7"},
+    {n:"Inputs", c:"#9AA3AD"}
+  ];
+  var GEAR = {n:"Settings", c:"#9AA3AD"};
+
+  var stage = document.getElementById('stage'), frame = document.getElementById('frame');
+  var ctx = document.getElementById('matrix').getContext('2d');
+  var gctx = document.getElementById('gear').getContext('2d');
+  var lctx = document.getElementById('launch').getContext('2d');
+  var list = document.getElementById('list'), glow = document.getElementById('glow'), cursor = document.getElementById('cursor');
+  var takeover = document.getElementById('takeover'), launch = document.getElementById('launch'), toast = document.getElementById('toast');
+  var sel = 0, greet = "HELLO SEEKER", weather = "sun", busy = false, reorder = false, onGear = false;
+  var CSS = getComputedStyle(document.documentElement);
+  var DOT = CSS.getPropertyValue('--dot').trim(), FG = CSS.getPropertyValue('--fg').trim();
+  var MUTE = CSS.getPropertyValue('--mute').trim(), DIM = CSS.getPropertyValue('--dim').trim();
+
+  function fit(){ var s = frame.clientWidth / 1920; stage.style.transform = 'scale(' + s + ')'; }
+  window.addEventListener('resize', fit); fit();
+
+  function dots(c, text, x, y, cell, color, grid, gridColor){
+    var r = cell * 0.36, cx = x;
+    for (var i = 0; i < text.length; i++){
+      var g = F[text[i]] || F[" "];
+      for (var row = 0; row < 7; row++) for (var col = 0; col < 5; col++){
+        var lit = g[row][col] === "1";
+        if (!lit && !grid) continue;
+        c.beginPath(); c.arc(cx + col*cell + cell/2, y + row*cell + cell/2, lit ? r : r*0.7, 0, 6.2832);
+        c.fillStyle = lit ? color : (gridColor || DOT); c.fill();
+      }
+      cx += cell * 6;
+    }
+  }
+  function textW(text, cell){ return text.length * cell * 6 - cell; }
+  function icon(c, name, x, y, cell, color, grid){
+    var g = ICONS[name], r = cell*0.36;
+    for (var row = 0; row < 9; row++) for (var col = 0; col < 9; col++){
+      var lit = g[row][col] === "1";
+      if (!lit && !grid) continue;
+      c.beginPath(); c.arc(x + col*cell + cell/2, y + row*cell + cell/2, lit ? r : r*0.7, 0, 6.2832);
+      c.fillStyle = lit ? color : DOT; c.fill();
+    }
+  }
+  function timeStr(){ return new Date().toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', timeZone:'America/Denver'}).toUpperCase(); }
+  function dateStr(){ return new Date().toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric', timeZone:'America/Denver'}).toUpperCase(); }
+
+  // top-right instrument panel: greeting / weather / time / date, right-aligned
+  function drawMatrix(){
+    ctx.clearRect(0,0,1920,1080);
+    var right = 1920 - 150, y = 120;
+    var gc = 12, gw = textW(greet, gc);
+    dots(ctx, greet, right - gw, y, gc, FG, true);
+    y += 7*gc + 54;
+    // time, large
+    var hc = 11, t = timeStr(), hw = textW(t, hc);
+    dots(ctx, t, right - hw, y, hc, FG, true);
+    y += 7*hc + 26;
+    // date, small
+    var dc = 5, ds = dateStr(), dw = textW(ds, dc);
+    dots(ctx, ds, right - dw, y, dc, '#8b9098', true);
+    y += 7*dc + 34;
+    // weather row: icon + temp
+    var ic = 7, tc = 7, temp = TEMPS[weather], tw = textW(temp, tc);
+    dots(ctx, temp, right - tw, y + 7, tc, FG, true);
+    icon(ctx, weather, right - tw - 30 - 9*ic, y, ic, FG, true);
+  }
+  function drawGear(){
+    gctx.clearRect(0,0,1920,1080);
+    var cell = 8, x = 1920 - 150 - 9*cell, yy = 1080 - 150 - 9*cell;
+    icon(gctx, 'gear', x, yy, cell, onGear ? FG : DIM, true);
+    cursor.className = 'cursor' + (reorder ? ' move' : '') + (onGear ? ' off' : '');
+  }
+
+  // ---------- app wheel, every name in dots ----------
+  var CELL = 10, nodes = [];
+  function makeNode(a){
+    var cv = document.createElement('canvas'); cv.className = 'app';
+    var w = textW(a.n.toUpperCase(), CELL) + CELL; cv.width = w; cv.height = 7*CELL;
+    cv.style.setProperty('--c', a.c);
+    cv.addEventListener('click', function(){ if (busy || reorder) return; var i = nodes.indexOf(cv); if (onGear) { onGear = false; drawGear(); } if (sel === i) go(); else { sel = i; layout(); } });
+    return cv;
+  }
+  APPS.forEach(function(a){ var n = makeNode(a); nodes.push(n); list.appendChild(n); });
+  function paint(cv, a, state){
+    var c = cv.getContext('2d'); c.clearRect(0,0,cv.width,cv.height);
+    var color = state === 'sel' ? a.c : (state === 'far' ? DIM : MUTE);
+    if (state === 'sel' && a.parts) {
+      var x = 0;
+      a.parts.forEach(function(p){ dots(c, p[0], x, 0, CELL, p[1], true, 'rgba(255,255,255,.07)'); x += p[0].length * CELL * 6; });
+    } else {
+      dots(c, a.n.toUpperCase(), 0, 0, CELL, color, state === 'sel', state === 'sel' ? 'rgba(255,255,255,.07)' : DOT);
+    }
+  }
+  function layout(){
+    var SP = 118;
+    nodes.forEach(function(cv, i){
+      var off = i - sel, a = Math.abs(off), app = APPS[i];
+      var y = 540 + off * SP, s = Math.max(0.42, 1 - a*0.14), x = a*a*14;
+      cv.style.transform = 'translate(' + x + 'px,' + (y - 35) + 'px) scale(' + s + ')';
+      cv.style.opacity = a > 2 ? 0 : (1 - a*0.22);
+      var state = off === 0 ? (onGear ? 'near' : 'sel') : (a > 2 ? 'far' : 'near');
+      paint(cv, app, state);
+      cv.className = 'app' + (off === 0 && reorder ? ' move' : '');
+    });
+    var c = onGear ? GEAR.c : APPS[sel].c;
+    cursor.style.setProperty('--c', APPS[sel].c);
+    glow.style.background = 'radial-gradient(900px 700px at ' + (onGear ? '100% 100%' : '0% 50%') + ', color-mix(in srgb, ' + c + ' 14%, transparent), transparent 70%)';
+    glow.style.opacity = 1;
+  }
+  function swap(i, j){ var t = APPS[i]; APPS[i] = APPS[j]; APPS[j] = t; var n = nodes[i]; nodes[i] = nodes[j]; nodes[j] = n; }
+
+  function go(){
+    if (busy) return; busy = true;
+    var a = onGear ? GEAR : APPS[sel], c = a.c;
+    takeover.style.setProperty('--c', c);
+    takeover.style.left = onGear ? (1920 - 186) + 'px' : '150px'; takeover.style.top = onGear ? (1080 - 186) + 'px' : '540px';
+    takeover.className = 'takeover'; void takeover.offsetWidth; takeover.className = 'takeover go';
+    var dark = lum(c) > 0.45, ink = dark ? '#0b0c0e' : '#ffffff', faint = dark ? 'rgba(0,0,0,.18)' : 'rgba(255,255,255,.22)';
+    lctx.clearRect(0,0,1920,1080);
+    var name = a.n.toUpperCase(), cell = name.length > 8 ? 18 : 24, w = textW(name, cell);
+    dots(lctx, name, (1920 - w)/2, 540 - 7*cell/2, cell, ink, true, faint);
+    lctx.fillStyle = ink; lctx.font = '500 22px ' + CSS.getPropertyValue('--mono'); lctx.textAlign = 'center'; lctx.letterSpacing = '0.3em';
+    lctx.fillText('OPENING', 960, 540 + 7*cell/2 + 70);
+    launch.className = 'on';
+    setTimeout(function(){ launch.className = ''; takeover.className = 'takeover'; setTimeout(function(){ busy = false; }, 300); }, 1700);
+  }
+  function lum(hex){ var n = parseInt(hex.slice(1),16); var r=(n>>16)&255,g=(n>>8)&255,b=n&255; return (0.2126*r+0.7152*g+0.0722*b)/255; }
+
+  // ---------- toast ----------
+  var toastTimer;
+  function showToast(title, body){
+    document.getElementById('t-title').textContent = title; document.getElementById('t-body').textContent = body;
+    var tc = document.getElementById('toasticon').getContext('2d'); tc.clearRect(0,0,54,54);
+    icon(tc, 'bell', 0, 0, 6, FG, true);
+    toast.style.setProperty('--tc', APPS[sel].c);
+    toast.className = 'toast on';
+    clearTimeout(toastTimer); toastTimer = setTimeout(function(){ toast.className = 'toast'; }, 4200);
+  }
+
+  // ---------- remote input ----------
+  var holdTimer = null, held = false;
+  function setReorder(on){ reorder = on; drawGear(); layout(); }
+  stage.addEventListener('keydown', function(e){
+    if (e.repeat) { e.preventDefault(); return; }
+    if (e.key === 'ArrowDown' && !onGear) { if (reorder && sel < APPS.length-1) swap(sel, sel+1); sel = Math.min(APPS.length-1, sel+1); layout(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp' && !onGear) { if (reorder && sel > 0) swap(sel, sel-1); sel = Math.max(0, sel-1); layout(); e.preventDefault(); }
+    else if (e.key === 'ArrowRight' && !reorder) { onGear = true; drawGear(); layout(); e.preventDefault(); }
+    else if (e.key === 'ArrowLeft' && !reorder) { onGear = false; drawGear(); layout(); e.preventDefault(); }
+    else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault(); held = false;
+      if (reorder) { setReorder(false); held = true; return; }
+      if (onGear) { go(); held = true; return; }
+      holdTimer = setTimeout(function(){ held = true; setReorder(true); }, 600);
+    }
+    else if (e.key === 'Escape' || e.key === 'Backspace') { if (reorder) setReorder(false); e.preventDefault(); }
+  });
+  stage.addEventListener('keyup', function(e){
+    if (e.key === 'Enter' || e.key === ' ') { clearTimeout(holdTimer); if (!held && !reorder) go(); held = false; }
+  });
+  stage.addEventListener('click', function(){ stage.focus(); });
+
+  // ---------- controls ----------
+  function setGreet(g, btn){ greet = g; document.getElementById('g-seeker').className = ''; document.getElementById('g-name').className = ''; btn.className = 'on'; drawMatrix(); }
+  document.getElementById('g-seeker').addEventListener('click', function(){ setGreet('HELLO SEEKER', this); });
+  document.getElementById('g-name').addEventListener('click', function(){ setGreet('HELLO FRIEND', this); });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-w]'), function(b){
+    b.addEventListener('click', function(){
+      weather = b.getAttribute('data-w');
+      Array.prototype.forEach.call(document.querySelectorAll('[data-w]'), function(x){ x.className = ''; });
+      b.className = 'on'; drawMatrix();
+    });
+  });
+  document.getElementById('d-launch').addEventListener('click', function(){ stage.focus(); go(); });
+  document.getElementById('d-toast').addEventListener('click', function(){ showToast('Code · Build done', 'Restore kit finished. 4 scripts written, post-update check PASS.'); });
+  document.getElementById('d-reorder').addEventListener('click', function(){ stage.focus(); if (onGear) { onGear = false; drawGear(); } setReorder(!reorder); });
+  var scrolling = false;
+  document.getElementById('d-scroll').addEventListener('click', function(){
+    if (scrolling) return; scrolling = true; stage.focus(); if (onGear) { onGear = false; drawGear(); }
+    var steps = [], i; for (i = sel+1; i < APPS.length; i++) steps.push(i); for (i = APPS.length-2; i >= 0; i--) steps.push(i);
+    var k = 0, id = setInterval(function(){ if (k >= steps.length) { clearInterval(id); scrolling = false; return; } sel = steps[k++]; layout(); }, 340);
+  });
+
+  layout(); drawMatrix(); drawGear(); setInterval(drawMatrix, 15000);
+})();
+</script>
