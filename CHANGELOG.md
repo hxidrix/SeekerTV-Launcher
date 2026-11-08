@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.0 (2026-11-08)
+
+Customized Seeker v1.0 TV wheel release.
+
+- Updated app identity and Android package version to Seeker v1.0.
+- Added customizable app titles and colors, wallpaper controls, gradient controls, and the infinite-scroll toggle.
+- Focused the documented build and exported APK on the TV wheel flavor.
+
 ## v0.9.0 (2026-10-22)
 
 First public release.

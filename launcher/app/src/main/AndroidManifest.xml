@@ -21,7 +21,7 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
     <application
-        android:label="Seeker TV"
+        android:label="Seeker v1.0"
         android:banner="@drawable/banner"
         android:icon="@drawable/banner"
         android:allowBackup="false"

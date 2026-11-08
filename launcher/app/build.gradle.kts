@@ -16,8 +16,8 @@ android {
         applicationId = "com.seeker.tv"
         minSdk = 30
         targetSdk = 34
-        versionCode = 13
-        versionName = "0.9.0"
+        versionCode = 14
+        versionName = "1.0"
     }
 
     // Each flavor compiles only its game modes; WHEEL is in all of them. Same applicationId for all,
@@ -60,12 +60,12 @@ android {
     lint { abortOnError = false }
 }
 
-// seeker-<flavor>-<version>.apk (debug builds add -debug)
+// seeker-v1.0-<flavor>.apk (debug builds add -debug)
 android.applicationVariants.all {
     val variant = this
     outputs.all {
         val suffix = if (variant.buildType.name == "release") "" else "-${variant.buildType.name}"
         (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
-            "seeker-${variant.flavorName}-${variant.versionName}$suffix.apk"
+            "seeker-v${variant.versionName}-${variant.flavorName}$suffix.apk"
     }
 }

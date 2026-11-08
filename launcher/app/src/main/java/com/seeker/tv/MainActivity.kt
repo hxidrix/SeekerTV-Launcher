@@ -437,7 +437,7 @@ class MainActivity : Activity(), SeekerView.Host, SettingsView.Host, GameHost {
             Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), PackageManager.MATCH_DEFAULT_ONLY,
         )?.activityInfo?.packageName ?: "?"
         return listOf(
-            "VERSION" to "$ver",
+            "VERSION" to "Seeker v$ver",
             "RAM" to "$pss MB PSS",
             "WEATHER" to wx,
             "HOME" to if (home == packageName) "YES, SEEKER IS HOME" else "NO ($home)",
@@ -617,7 +617,7 @@ class MainActivity : Activity(), SeekerView.Host, SettingsView.Host, GameHost {
     /** Plain list of apps, no dot matrix. Used when the real screen keeps crashing. */
     private fun showFallback() {
         val apps = try { Apps.wheel(Apps.load(this), prefs) } catch (e: Exception) { emptyList() }
-        val labels = listOf("Retry Seeker TV", "Settings") + apps.map { it.name }
+        val labels = listOf("Retry Seeker v1.0", "Settings") + apps.map { it.name }
         val list = ListView(this)
         list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, labels)
         list.setOnItemClickListener { _, _, pos, _ ->

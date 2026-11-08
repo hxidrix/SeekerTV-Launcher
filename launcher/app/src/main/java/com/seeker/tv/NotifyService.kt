@@ -96,10 +96,10 @@ class NotifyService : Service() {
     override fun onCreate() {
         super.onCreate()
         val nm = getSystemService(NotificationManager::class.java)
-        nm.createNotificationChannel(NotificationChannel(CHANNEL, "Seeker TV", NotificationManager.IMPORTANCE_MIN))
+        nm.createNotificationChannel(NotificationChannel(CHANNEL, "Seeker v1.0", NotificationManager.IMPORTANCE_MIN))
         val n = Notification.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
-            .setContentTitle("Seeker TV")
+            .setContentTitle("Seeker v1.0")
             .setContentText("Listening for notifications")
             .build()
         startForeground(1, n)

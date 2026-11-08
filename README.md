@@ -1,20 +1,20 @@
-# Seeker TV
+# Seeker v1.0
 
-Seeker is a lightweight Android TV launcher with a dot matrix app wheel and optional arcade home modes. Settings include app title and color customization, infinite scroll on or off, a custom wallpaper with opacity control, and an adjustable left to right gradient for contrast.
+Seeker v1.0 is a lightweight Android TV launcher with a dot-matrix app wheel. Settings include app title and color customization, infinite scroll on or off, a custom wallpaper with opacity control, and an adjustable left-to-right gradient for contrast.
 
 ## Build and export an APK
 
 ### Android Studio
 
 1. Open the `launcher` folder in Android Studio and let Gradle sync.
-2. In **Build > Select Build Variant**, choose `allDebug` for the full app.
+2. In **Build > Select Build Variant**, choose `wheelDebug` for Seeker v1.0.
 3. Choose **Build > Build Bundle(s) / APK(s) > Build APK(s)**.
 4. Android Studio shows a notification with **Locate** when the APK is ready.
 
-The all modes APK is written to:
+The Seeker v1.0 APK is written to:
 
 ```text
-launcher/app/build/outputs/apk/all/debug/seeker-all-0.9.0-debug.apk
+launcher/app/build/outputs/apk/wheel/debug/seeker-v1.0-wheel-debug.apk
 ```
 
 The `debug` suffix means it is signed with the local debug key. It is suitable for installing on your own TV. Release builds need your own signing key.
@@ -24,10 +24,10 @@ The `debug` suffix means it is signed with the local debug key. It is suitable f
 Install JDK 17 and Android SDK Platform 34. From a terminal in `launcher`, run:
 
 ```powershell
-.\gradlew.bat assembleAllDebug
+.\gradlew.bat assembleWheelDebug
 ```
 
-On macOS or Linux, run `./gradlew assembleAllDebug`. The APK appears at the path above. To build a smaller flavor, use `assembleWheelDebug`, `assembleFlapDebug`, `assembleInvadersDebug`, or `assembleHuntDebug` instead.
+On macOS or Linux, run `./gradlew assembleWheelDebug`. The APK appears at the path above.
 
 ## Install the exported APK on your TV
 
@@ -46,7 +46,7 @@ On macOS or Linux, run `./gradlew assembleAllDebug`. The APK appears at the path
 4. Install the APK you exported. For example:
 
    ```sh
-   adb install -r launcher/app/build/outputs/apk/all/debug/seeker-all-0.9.0-debug.apk
+   adb install -r launcher/app/build/outputs/apk/wheel/debug/seeker-v1.0-wheel-debug.apk
    ```
 
 5. Open Seeker once:
@@ -77,31 +77,26 @@ adb shell pm grant com.seeker.tv android.permission.WRITE_SECURE_SETTINGS
 adb shell appops set com.seeker.tv SYSTEM_ALERT_WINDOW allow
 ```
 
-## Available APK flavors
+## Build variant
 
-Every flavor includes the regular app wheel. The `all` flavor includes all game modes.
+The Seeker v1.0 TV build uses the regular dot-matrix app wheel.
 
-| Build task | Modes included |
+| Build task | Included app |
 | --- | --- |
-| `assembleWheelDebug` | Wheel |
-| `assembleFlapDebug` | Wheel, Flap |
-| `assembleInvadersDebug` | Wheel, Invaders |
-| `assembleHuntDebug` | Wheel, Hunt |
-| `assembleAllDebug` | Wheel, Flap, Invaders, Hunt |
+| `assembleWheelDebug` | Seeker v1.0 TV wheel |
 
 ## Project layout
 
 - `launcher/app/src/main` — shared launcher, settings, weather, and notification code
-- `launcher/app/src/modeFlap`, `modeInvaders`, `modeHunt` — optional game modes
-- `launcher/app/src/<flavor>` — mode list for each APK flavor
+- `launcher/app/src/wheel` — Seeker v1.0 TV build mode list
 - `design` — current design references and specifications
 - `restore-kit` — recovery scripts for restoring the TV's Home app
 
 ## Screenshots
 
-| Wheel | Flap | Invaders | Hunt |
-| --- | --- | --- | --- |
-| ![Wheel](docs/screens/wheel.png) | ![Flap](docs/screens/flap.png) | ![Invaders](docs/screens/invaders.png) | ![Hunt](docs/screens/hunt.png) |
+| Seeker v1.0 TV |
+| --- |
+| ![Seeker v1.0 wheel](docs/screens/wheel.png) |
 
 ## License
 
